@@ -1,8 +1,10 @@
 #include "gl-utils.h"
 #include "logger.h"
+
 #include <string>
 #include <fstream>
 #include <iostream>
+#include <optional>
 
 /*****************************************************************************************************************************************/
 // Shader
@@ -29,21 +31,19 @@ static GLenum GetShaderTypeFromFile(const char* filename)
 	if (EndWith(filename, ".tese"))
 		return GL_TESS_EVALUATION_SHADER;
 
-	assert(false);
+	logger::Error("Invalid file format: " + std::string(filename));
 	return 0;
-
 }
 
 /*****************************************************************************************************************************************/
 
-static std::string ReadShaderFile(const char* filename)
+static std::optional<std::string> ReadShaderFile(const char* filename)
 {
-
 	std::ifstream inFile(filename);
 	if (!inFile)
 	{
-		printf("Failed to load file: %s\n", filename);
-		assert(0);
+		logger::Error("Failed to read file: " + std::string(filename));
+		return {};
 	}
 	return std::string{
 		(std::istreambuf_iterator<char>(inFile)),
@@ -54,8 +54,7 @@ static std::string ReadShaderFile(const char* filename)
 /*****************************************************************************************************************************************/
 
 GLShader::GLShader(const char* filename) :
-	GLShader(GetShaderTypeFromFile(filename),
-		ReadShaderFile(filename).c_str())
+	GLShader(GetShaderTypeFromFile(filename), ReadShaderFile(filename).value().c_str())
 {
 }
 
