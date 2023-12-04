@@ -71,6 +71,10 @@ public:
 
 	void setMat4(std::string name, float* data);
 
+	GLint getAttribLocation(std::string name) {
+		return glGetAttribLocation(handle_, name.c_str());
+	}
+
 protected:
 
 	GLuint        handle_;

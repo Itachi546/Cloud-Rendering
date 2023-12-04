@@ -42,34 +42,31 @@ MessageCallback(GLenum source,
 		type, severity, message);
 }
 
-GLTexture initialize3DTexture() {
+GLTexture create3DTexture() {
 	TextureCreateInfo createInfo = {
-		256, 256, 256, GL_RED,
-		GL_R32F,
+		32, 32, 32, GL_RGBA,
+		GL_RGBA8,
 		GL_TEXTURE_3D,
-		GL_FLOAT
+		GL_UNSIGNED_BYTE
 	};
 
 	GLTexture texture;
 	texture.init(&createInfo);
-
-	GLShader shader("Shaders/test.comp");
-	GLComputeProgram program;
-	program.init(shader);
-
-	program.use();
-	program.setTexture(0, texture.handle, GL_READ_WRITE, GL_R32F);
-
-	uint32_t workGroupSize = 256 / 8;
-	program.dispatch(workGroupSize, workGroupSize, workGroupSize);
-
 	return texture;
+}
+
+void initialize3DTexture(GLTexture texture, GLComputeProgram program) {
+	program.use();
+	program.setTexture(0, texture.handle, GL_WRITE_ONLY, GL_RGBA8);
+
+	uint32_t workGroupSize = 32 / 8;
+	program.dispatch(workGroupSize, workGroupSize, workGroupSize);
+	glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
 }
 
 int main() {
 
 	if(!glfwInit()) return 1;
-	glfwWindowHint(GLFW_SAMPLES, 4);
 
 	GLFWwindow* window = glfwCreateWindow(gWindowProps.width, gWindowProps.height, "Hello OpenGL", 0, 0);
 	gWindowProps.window = window;
@@ -109,11 +106,15 @@ int main() {
 	GLFramebuffer mainFBO;
 	mainFBO.init({ Attachment{ 0, &colorAttachment } }, nullptr);
 
-	GLTexture layeredTexture = initialize3DTexture();
+	GLShader shader("Shaders/test.comp");
+	GLComputeProgram program;
+	program.init(shader);
+	GLTexture layeredTexture = create3DTexture();
 
 	while (!glfwWindowShouldClose(window)) {
 		glfwPollEvents();
 
+		initialize3DTexture(layeredTexture, program);
 		ImGuiService::NewFrame();
 
 		ImGuiService::RenderDockSpace();
@@ -141,16 +142,16 @@ int main() {
 
 		ImGui::PushID(1);
 		static int layer1 = 0;
-		ImGui::DragInt("Layer", &layer1, 0.1f, 0, 255);
-		ImGuiService::Image3D((ImTextureID)(uint64_t)layeredTexture.handle, ImVec2{ 256.0f, 256.0f }, float(layer1) / 255.0f);
+		ImGui::DragInt("Layer", &layer1, 0.1f, 0, 31);
+		ImGuiService::Image3D((ImTextureID)(uint64_t)layeredTexture.handle, ImVec2{ 256.0f, 256.0f }, float(layer1) / 31.0f);
 		ImGui::Separator();
 		ImGui::PopID();
 
 		ImGui::PushID(2);
 		static int layer2 = 0;
 		ImGui::Text("Noise Texture 2");
-		ImGui::DragInt("Layer", &layer2, 0.1f, 0, 255);
-		ImGuiService::Image3D((ImTextureID)(uint64_t)layeredTexture.handle, ImVec2{ 256.0f, 256.0f }, float(layer2) / 255.0f);
+		ImGui::DragInt("Layer", &layer2, 0.1f, 0, 31);
+		ImGuiService::Image3D((ImTextureID)(uint64_t)layeredTexture.handle, ImVec2{ 256.0f, 256.0f }, float(layer2) / 31.0f);
 		ImGui::Separator();
 		ImGui::PopID();
 
