@@ -12,6 +12,7 @@ void CloudGenerator::Initialize()
 	GL_TEXTURE_3D,
 	GL_FLOAT
 	};
+	createInfo.wrapType = GL_REPEAT;
 
 	mTexture1 = std::make_unique<GLTexture>();
 	mTexture1->init(&createInfo);
@@ -40,6 +41,24 @@ void CloudGenerator::Initialize()
 
 	aabbMin = { -2.0f, -1.5f, -2.0f };
 	aabbMax = { 2.0f, 1.5f, 2.0f };
+
+	GLShader rayMarchVS("Shaders/raymarch.vert");
+	GLShader rayMarchFS("Shaders/raymarch.frag");
+	mRayMarchProgram = std::make_unique<GLProgram>();
+	mRayMarchProgram->init(rayMarchVS, rayMarchFS);
+
+	std::vector<glm::vec2> positions = {
+		glm::vec2(-1.0f, -1.0f),
+		glm::vec2(1.0f, 1.0f),
+		glm::vec2(-1.0f, 1.0f),
+		glm::vec2(-1.0f, -1.0f),
+		glm::vec2(1.0f, 1.0f),
+		glm::vec2(1.0f, -1.0f)
+	};
+	
+	mQuadBuffer = std::make_unique<GLBuffer>();
+	uint32_t dataSize = static_cast<uint32_t>(positions.size() * sizeof(glm::vec2));
+	mQuadBuffer->init(positions.data(), dataSize, 0);
 }
 
 static const char* CHANNELS_DROPDOWN[] = {
@@ -98,13 +117,34 @@ void CloudGenerator::AddUI()
 	}
 }
 
-void CloudGenerator::Render()
+void CloudGenerator::Render(glm::mat4 P, glm::mat4 V, glm::vec3 camPos)
 {
 	DebugDraw::AddRect(aabbMin, aabbMax);
+
+	glm::mat4 invP = glm::inverse(P);
+	glm::mat4 invV = glm::inverse(V);
+
+	glUseProgram(0);
+	mRayMarchProgram->use();
+	mRayMarchProgram->setVec3("uAABBMin", &aabbMin[0]);
+	mRayMarchProgram->setVec3("uAABBMax", &aabbMax[0]);
+	mRayMarchProgram->setVec3("uCamPos", &camPos[0]);
+	mRayMarchProgram->setMat4("uInvP", &invP[0][0]);
+	mRayMarchProgram->setMat4("uInvV", &invV[0][0]);
+	mRayMarchProgram->setTexture("uNoiseTex1", 0, mTexture1->handle, true);
+	mRayMarchProgram->setTexture("uNoiseTex2", 1, mTexture2->handle, true);
+
+	glBindBuffer(GL_ARRAY_BUFFER, mQuadBuffer->handle);
+	glEnableVertexAttribArray(0);
+	glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(glm::vec2), 0);
+
+	glDrawArrays(GL_TRIANGLES, 0, 6);
 }
 
 void CloudGenerator::Shutdown()
 {
 	mTexture1->destroy();
 	mTexture2->destroy();
+	mRayMarchProgram->destroy();
+	mQuadBuffer->destroy();
 }

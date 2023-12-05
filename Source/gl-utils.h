@@ -57,7 +57,7 @@ public:
 
 	void use() const { glUseProgram(handle_); }
 
-	void setTexture(const std::string& name, int binding, unsigned int textureId);
+	void setTexture(const std::string& name, int binding, unsigned int textureId, bool layered = false);
 
 	void setInt(const std::string& name, int val);
 

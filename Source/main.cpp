@@ -116,13 +116,13 @@ int main() {
 	NoiseGenerator::GetInstance()->Initialize();
 	std::unique_ptr<CloudGenerator> cloudGenerator = std::make_unique<CloudGenerator>();
 	cloudGenerator->Initialize();
+	glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
 
 	float angle = 0.0f;
-	glm::vec3 camPos = glm::vec3(0.0f, -4.0f, -4.0f);
+	glm::vec3 camPos = glm::vec3(0.0f, 4.0f, -4.0f);
 	glm::mat4 P = glm::perspective(glm::radians(60.0f), float(gFBOWidth) / float(gFBOHeight), 0.3f, 100.0f);
 	glm::mat4 V = glm::lookAt(camPos, glm::vec3(0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-	glm::mat4 M = glm::mat4(1.0f);
-	glm::mat4 VP = P * V * M;
+	glm::mat4 VP = P * V;
 
 	while (!glfwWindowShouldClose(window)) {
 		glfwPollEvents();
@@ -131,35 +131,25 @@ int main() {
 
 		ImGuiService::RenderDockSpace();
 
-		glm::vec2 ndcCoord{ (gWindowProps.mouseX / gWindowProps.width) * 2.0f - 1.0f,
-			  1.0f - 2.0f * (gWindowProps.mouseY / gWindowProps.height),
-		};
-
-		glm::vec3 r0 = glm::vec3(0.1f, 2.0f, -4.0f);
-		r0 = glm::rotate(glm::mat4(1.0f), float(glfwGetTime() * 0.1f), glm::vec3(1.0f)) * glm::vec4(r0, 0.0f);
-		Ray ray{ r0 , glm::normalize(-r0)};
-		DebugDraw::AddLine(ray.origin, ray.origin + ray.direction * 10.0f, {1.0f, 0.0f, 0.0f});
-
-		glm::vec2 t{ 0.0f, 0.0f };
-		if (Utils::RayBoxIntersection(ray, cloudGenerator->aabbMin, cloudGenerator->aabbMax, t)) {
-			glm::vec3 p0 = ray.origin + t.x * ray.direction;
-			glm::vec3 p1 = ray.origin + t.y * ray.direction;
-			DebugDraw::AddLine(p0, p1, {0.0f, 1.0f, 0.0f});
-		}
-
 		mainFBO.bind();
 		mainFBO.setClearColor(0.3f, 0.3f, 0.3f, 1.0f);
 		mainFBO.setViewport(gFBOWidth, gFBOHeight);
 		mainFBO.clear(true);
-		cloudGenerator->Render();
+		cloudGenerator->Render(P, V, camPos);
 		DebugDraw::Render(VP, glm::vec2(gFBOWidth, gFBOHeight));
 		mainFBO.unbind();
 
-		glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
 		ImGui::Begin("MainWindow");
-		const float windowWidth = ImGui::GetContentRegionAvail().x;
-		const float windowHeight = ImGui::GetContentRegionAvail().y;
-		ImGui::Image((ImTextureID)((uint64_t)mainFBO.attachments[0]), ImVec2{ windowWidth, windowHeight });
+
+		ImVec2 dims = ImGui::GetContentRegionAvail();
+		ImVec2 pos = ImGui::GetCursorScreenPos();
+
+		ImGui::GetWindowDrawList()->AddImage(
+			(ImTextureID)(uint64_t)mainFBO.attachments[0],
+			ImVec2(pos.x, pos.y),
+			ImVec2(pos.x + dims.x, pos.y + dims.y),
+			ImVec2(0, 1),
+			ImVec2(1, 0));
 		ImGui::End();
 
 		ImGui::Begin("Logs");
@@ -169,11 +159,6 @@ int main() {
 		ImGui::End();
 
 		ImGui::Begin("Options");
-		if (ImGui::SliderAngle("Rotation", &angle)) {
-			M = glm::rotate(glm::mat4(1.0f), angle, glm::vec3(0.0f, 1.0f, 0.0f));
-			VP = P * V * M;
-		}
-
 		cloudGenerator->AddUI();
 		ImGui::End();
 

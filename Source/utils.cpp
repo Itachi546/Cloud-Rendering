@@ -3,7 +3,6 @@
 #include <algorithm>
 
 namespace Utils {
-    // https://iquilezles.org/articles/intersectors/
     bool RayBoxIntersection(const Ray& ray, const glm::vec3& min, const glm::vec3& max, glm::vec2& t)
     {
         glm::vec3 invRd = 1.0f / ray.direction;
@@ -34,8 +33,6 @@ namespace Utils {
     {
         glm::vec4 ndc{ ndcCoord, -1.0f, 1.0f };
         glm::vec4 viewCoord = glm::inverse(P) * ndc;
-        viewCoord.x /= viewCoord.w;
-        viewCoord.y /= viewCoord.w;
         viewCoord.z = -1.0f;
         viewCoord.w = 0.0f;
 

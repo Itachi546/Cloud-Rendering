@@ -103,6 +103,8 @@
   <ItemGroup>
     <None Include="Shaders\line.frag" />
     <None Include="Shaders\line.vert" />
+    <None Include="Shaders\raymarch.frag" />
+    <None Include="Shaders\raymarch.vert" />
     <None Include="Shaders\worley.comp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

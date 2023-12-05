@@ -5,6 +5,8 @@
 #include "noise-generator/noise-generator.h"
 
 struct GLTexture;
+class GLProgram;
+struct GLBuffer;
 
 class CloudGenerator
 {
@@ -15,7 +17,7 @@ public:
 
 	void AddUI();
 
-	void Render();
+	void Render(glm::mat4 P, glm::mat4 V, glm::vec3 camPos);
 
 	void Shutdown();
 
@@ -29,5 +31,7 @@ private:
 	NoiseParams mTex2Params[3];
 
 	NoiseGenerator* mNoiseGenerator;
+	std::unique_ptr<GLProgram> mRayMarchProgram;
 
+	std::unique_ptr<GLBuffer> mQuadBuffer;
 };
