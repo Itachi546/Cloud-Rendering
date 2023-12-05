@@ -5,6 +5,7 @@ namespace ImGuiService {
 	struct RenderData {
 		uint32_t textureId;
 		float layer;
+		int channel;
 		uint32_t vertexOffset;
 	};
 
@@ -48,10 +49,12 @@ namespace ImGuiService {
 			"in vec4 Frag_Color;\n"
 			"uniform sampler3D Texture;\n"
 			"uniform float Layer;\n"
+			"uniform int Channel;\n"
 			"layout (location = 0) out vec4 Out_Color;\n"
 			"void main()\n"
 			"{\n"
-			"    Out_Color = Frag_Color * vec4(texture(Texture, vec3(Frag_UV, Layer)).rgb, 1.0f);\n"
+			"vec4 color = texture(Texture, vec3(Frag_UV, Layer));"
+			"Out_Color = Frag_Color * vec4(vec3(color[Channel]), 1.0f);\n"
 			"}\n";
 
 		GLShader vs(GL_VERTEX_SHADER, vsCode);
@@ -104,6 +107,7 @@ namespace ImGuiService {
 
 		RenderData* renderData = reinterpret_cast<RenderData*>(cmd->UserCallbackData);
 		program.setFloat("Layer", renderData->layer);
+		program.setInt("Channel", renderData->channel);
 		program.setMat4("ProjMtx", &gState.projectionMatrix[0][0]);
 		program.setInt("Texture", 0);
 		glActiveTexture(GL_TEXTURE0);
@@ -120,7 +124,7 @@ namespace ImGuiService {
 	}
 
 
-	void Image3D(ImTextureID user_texture_id, const ImVec2& size, float layer, const ImVec4& border_col)
+	void Image3D(ImTextureID user_texture_id, const ImVec2& size, float layer, int channel, const ImVec4& border_col)
 	{
 		ImGuiWindow* window = ImGui::GetCurrentWindow();
 
@@ -137,7 +141,7 @@ namespace ImGuiService {
 		if (!ImGui::ItemAdd(bb, 0))
 			return;
 
-		RenderData data = { (uint32_t)(uint64_t)user_texture_id, layer, gState.bufferVertexOffset};
+		RenderData data = { (uint32_t)(uint64_t)user_texture_id, layer, channel, gState.bufferVertexOffset};
 		gState.textureData.push_back(data);
 
 		ImVec2 bbMin = bb.Min;

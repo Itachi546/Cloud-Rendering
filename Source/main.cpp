@@ -1,6 +1,7 @@
 #include "gl-utils.h"
 #include "imgui-service.h"
 #include "logger.h"
+#include "noise-generator/noise-generator.h"
 
 #include <iostream>
 
@@ -44,10 +45,10 @@ MessageCallback(GLenum source,
 
 GLTexture create3DTexture() {
 	TextureCreateInfo createInfo = {
-		32, 32, 32, GL_RGBA,
-		GL_RGBA8,
+		128, 128, 128, GL_RGBA,
+		GL_RGBA32F,
 		GL_TEXTURE_3D,
-		GL_UNSIGNED_BYTE
+		GL_FLOAT
 	};
 
 	GLTexture texture;
@@ -55,13 +56,23 @@ GLTexture create3DTexture() {
 	return texture;
 }
 
-void initialize3DTexture(GLTexture texture, GLComputeProgram program) {
-	program.use();
-	program.setTexture(0, texture.handle, GL_WRITE_ONLY, GL_RGBA8);
+void SelectableTexture3D(GLuint textureHandle, float* layer, int* channel) {
+	ImGui::SliderFloat("Layer", layer, 0.0f, 1.0f);
+	ImGui::Combo("Channel", channel, "R\0G\0B\0A\0");
+	ImGuiService::Image3D((ImTextureID)(uint64_t)textureHandle, ImVec2{ 256.0f, 256.0f }, *layer, *channel);
+}
 
-	uint32_t workGroupSize = 32 / 8;
-	program.dispatch(workGroupSize, workGroupSize, workGroupSize);
-	glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
+bool CreateNoiseWidget(const char* name, NoiseParams* params) {
+	bool changed = false;   
+	if(ImGui::CollapsingHeader(name)) {
+		changed = ImGui::SliderFloat("Amplitude", &params->amplitude, 0.0f, 1.0f);
+		changed |= ImGui::SliderFloat("Frequency", &params->frequency, 0.0f, 10.0f);
+		changed |= ImGui::SliderFloat("Lacunarity", &params->lacunarity, 0.0f, 2.0f);
+		changed |= ImGui::SliderFloat("Persitence", &params->persistence, 0.0f, 1.0f);
+		changed |= ImGui::SliderInt("Octave", &params->numOctaves, 1, 8);
+		changed |= ImGui::DragFloat3("Offset", &params->offset[0], 0.1f);
+	}
+	return changed;
 }
 
 int main() {
@@ -106,25 +117,35 @@ int main() {
 	GLFramebuffer mainFBO;
 	mainFBO.init({ Attachment{ 0, &colorAttachment } }, nullptr);
 
-	GLShader shader("Shaders/test.comp");
-	GLComputeProgram program;
-	program.init(shader);
 	GLTexture layeredTexture = create3DTexture();
+
+	NoiseGenerator* noiseGenerator = NoiseGenerator::GetInstance();
+	noiseGenerator->Initialize();
+
+	NoiseParams worleyParams[4];
+	worleyParams[0] = { 0.5f, 2.0f, 2.0f, 0.5f, 2, glm::vec3(0.0f) };
+	worleyParams[1] = { 0.5f, 4.0f, 2.0f, 0.5f, 4, glm::vec3(1.0f) };
+	worleyParams[2] = { 0.5f, 8.0f, 2.0f, 0.5f, 6, glm::vec3(1.0f) };
+	worleyParams[3] = { 0.5f, 8.0f, 2.0f, 0.5f, 6, glm::vec3(1.0f) };
+
+	noiseGenerator->GenerateWorley3D(&worleyParams[0], &layeredTexture, 0);
+	noiseGenerator->GenerateWorley3D(&worleyParams[1], &layeredTexture, 1);
+	noiseGenerator->GenerateWorley3D(&worleyParams[2], &layeredTexture, 2);
 
 	while (!glfwWindowShouldClose(window)) {
 		glfwPollEvents();
 
-		initialize3DTexture(layeredTexture, program);
 		ImGuiService::NewFrame();
 
 		ImGuiService::RenderDockSpace();
 
 		mainFBO.bind();
-		mainFBO.setClearColor(1.0f, 0.0f, 0.0f, 1.0f);
+		mainFBO.setClearColor(0.3f, 0.3f, 0.3f, 1.0f);
 		mainFBO.setViewport(gFBOWidth, gFBOHeight);
 		mainFBO.clear(true);
 		mainFBO.unbind();
 
+		glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
 		ImGui::Begin("MainWindow");
 		const float windowWidth = ImGui::GetContentRegionAvail().x;
 		const float windowHeight = ImGui::GetContentRegionAvail().y;
@@ -138,20 +159,16 @@ int main() {
 		ImGui::End();
 
 		ImGui::Begin("Options");
-		ImGui::Text("Noise Texture");
 
 		ImGui::PushID(1);
-		static int layer1 = 0;
-		ImGui::DragInt("Layer", &layer1, 0.1f, 0, 31);
-		ImGuiService::Image3D((ImTextureID)(uint64_t)layeredTexture.handle, ImVec2{ 256.0f, 256.0f }, float(layer1) / 31.0f);
-		ImGui::Separator();
-		ImGui::PopID();
+		ImGui::Text("Noise Texture");
+		static float layer = 0;
+		static int channel = 0;
+		SelectableTexture3D(layeredTexture.handle, &layer, &channel);
+		if (CreateNoiseWidget("Noise Params", &worleyParams[channel])) {
+			noiseGenerator->GenerateWorley3D(&worleyParams[channel], &layeredTexture, channel);
+		}
 
-		ImGui::PushID(2);
-		static int layer2 = 0;
-		ImGui::Text("Noise Texture 2");
-		ImGui::DragInt("Layer", &layer2, 0.1f, 0, 31);
-		ImGuiService::Image3D((ImTextureID)(uint64_t)layeredTexture.handle, ImVec2{ 256.0f, 256.0f }, float(layer2) / 31.0f);
 		ImGui::Separator();
 		ImGui::PopID();
 

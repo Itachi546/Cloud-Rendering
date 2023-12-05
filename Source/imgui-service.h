@@ -40,6 +40,7 @@ namespace ImGuiService {
 	void Image3D(ImTextureID user_texture_id,
 		const ImVec2& size,
 		float layer = 0,
+		int channel = 0,
 		const ImVec4& border_col = { 0.5f, 0.5f, 0.5f, 1.0f });
 
 	void Render(GLFWwindow* window);

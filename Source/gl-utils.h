@@ -57,21 +57,21 @@ public:
 
 	void use() const { glUseProgram(handle_); }
 
-	void setTexture(std::string name, int binding, unsigned int textureId);
+	void setTexture(const std::string& name, int binding, unsigned int textureId);
 
-	void setInt(std::string name, int val);
+	void setInt(const std::string& name, int val);
 
-	void setFloat(std::string name, float val);
+	void setFloat(const std::string& name, float val);
 
-	void setVec2(std::string name, float x, float y);
+	void setVec2(const std::string& name, float* val);
 
-	void setVec3(std::string name, float* val);
+	void setVec3(const std::string& name, float* val);
 
-	void setVec4(std::string name, float* val);
+	void setVec4(const std::string& name, float* val);
 
-	void setMat4(std::string name, float* data);
+	void setMat4(const std::string& name, float* data);
 
-	GLint getAttribLocation(std::string name) {
+	GLint getAttribLocation(const std::string& name) {
 		return glGetAttribLocation(handle_, name.c_str());
 	}
 
@@ -90,13 +90,17 @@ public:
 
 	void init(GLShader shader);
 
-	void setTexture(int binding, uint32_t textureId, GLenum access, GLenum format);
+	void setTexture(int binding, uint32_t textureId, GLenum access, GLenum format, bool layered = false);
 
-	void setInt(std::string name, int val);
+	void setInt(const std::string& name, int val);
 
-	void setFloat(std::string name, float val);
+	void setFloat(const std::string& name, float val);
 
-	void setVec3(std::string name, float* val);
+	void setVec2(const std::string& name, float* val);
+
+	void setVec3(const std::string& name, float* val);
+
+	void setVec4(const std::string& name, float* val);
 
 	void dispatch(uint32_t workGroupX, uint32_t workGroupY, uint32_t workGroupZ) const;
 
@@ -158,6 +162,7 @@ struct GLTexture {
 	uint32_t width;
 	uint32_t height;
 	uint32_t depth;
+	GLuint internalFormat;
 };
 
 /*************************************************************************************************************************************************/

@@ -118,39 +118,39 @@ void GLProgram::init(GLShader a, GLShader b, GLShader c)
 }
 
 
-void GLProgram::setTexture(std::string name, int binding, unsigned int textureId)
+void GLProgram::setTexture(const std::string& name, int binding, unsigned int textureId)
 {
 	setInt("name", binding);
 	glActiveTexture(GL_TEXTURE0 + binding);
 	glBindTexture(GL_TEXTURE_2D, textureId);
 }
 
-void GLProgram::setInt(std::string name, int val)
+void GLProgram::setInt(const std::string& name, int val)
 {
 	glUniform1i(glGetUniformLocation(handle_, name.c_str()), val);
 }
 
-void GLProgram::setFloat(std::string name, float val)
+void GLProgram::setFloat(const std::string& name, float val)
 {
 	glUniform1f(glGetUniformLocation(handle_, name.c_str()), val);
 }
 
-void GLProgram::setVec2(std::string name, float x, float y)
+void GLProgram::setVec2(const std::string& name, float* val)
 {
-	glUniform2f(glGetUniformLocation(handle_, name.c_str()), x, y);
+	glUniform2fv(glGetUniformLocation(handle_, name.c_str()), 1, val);
 }
 
-void GLProgram::setVec3(std::string name, float* val)
+void GLProgram::setVec3(const std::string& name, float* val)
 {
 	glUniform3fv(glGetUniformLocation(handle_, name.c_str()), 1, val);
 }
 
-void GLProgram::setVec4(std::string name, float* val)
+void GLProgram::setVec4(const std::string& name, float* val)
 {
 	glUniform4fv(glGetUniformLocation(handle_, name.c_str()), 1, val);
 }
 
-void GLProgram::setMat4(std::string name, float* data)
+void GLProgram::setMat4(const std::string& name, float* data)
 {
 	glUniformMatrix4fv(glGetUniformLocation(handle_, name.c_str()), 1, GL_FALSE, data);
 }
@@ -166,24 +166,34 @@ void GLComputeProgram::init(GLShader shader)
 	printProgramInfoLog(handle_);
 }
 
-void GLComputeProgram::setTexture(int binding, uint32_t textureId, GLenum access, GLenum format)
+void GLComputeProgram::setTexture(int binding, uint32_t textureId, GLenum access, GLenum format, bool layered)
 {
-	glBindImageTexture(binding, textureId, 0, GL_FALSE, 0, access, format);
+	glBindImageTexture(binding, textureId, 0, layered ? GL_TRUE : GL_FALSE, 0, access, format);
 }
 
-void GLComputeProgram::setInt(std::string name, int val)
+void GLComputeProgram::setVec2(const std::string& name, float* val) 
+{
+	glUniform2fv(glGetUniformLocation(handle_, name.c_str()), 1, val);
+}
+
+void GLComputeProgram::setInt(const std::string& name, int val)
 {
 	glUniform1i(glGetUniformLocation(handle_, name.c_str()), val);
 }
 
-void GLComputeProgram::setFloat(std::string name, float val)
+void GLComputeProgram::setFloat(const std::string& name, float val)
 {
 	glUniform1f(glGetUniformLocation(handle_, name.c_str()), val);
 }
 
-void GLComputeProgram::setVec3(std::string name, float* val)
+void GLComputeProgram::setVec3(const std::string& name, float* val)
 {
 	glUniform3fv(glGetUniformLocation(handle_, name.c_str()), 1, val);
+}
+
+void GLComputeProgram::setVec4(const std::string& name, float* val)
+{
+	glUniform4fv(glGetUniformLocation(handle_, name.c_str()), 1, val);
 }
 
 void GLComputeProgram::dispatch(uint32_t workGroupX, uint32_t workGroupY, uint32_t workGroupZ) const
@@ -239,6 +249,8 @@ void GLTexture::init(TextureCreateInfo* createInfo, void* data)
 {
 	width = createInfo->width;
 	height = createInfo->height;
+	depth = createInfo->depth;
+	internalFormat = createInfo->internalFormat;
 
 	GLuint target = createInfo->target;
 	glGenTextures(1, &handle);
