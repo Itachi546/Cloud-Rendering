@@ -30,8 +30,7 @@ namespace DebugDraw {
 		line->p0 = p0;
 		line->p1 = p1;
 		line->c0 = line->c1 = color;
-
-		gLineBufferOffset += 2;
+		gLineBufferOffset += 1;
 	}
 
 	void AddRect(const glm::vec3& min, const glm::vec3& max, const glm::vec3& color) {
@@ -102,7 +101,7 @@ namespace DebugDraw {
 		line->c0 = line->c1 = color;
 		line++;
 
-		gLineBufferOffset += 24;
+		gLineBufferOffset += 12;
 	}
 
 	void Render(glm::mat4 VP, glm::vec2 windowSize) {
@@ -125,7 +124,7 @@ namespace DebugDraw {
 		glEnableVertexAttribArray(1);
 		glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(float) * 6, (void*)(sizeof(float) * 3));
 
-		glDrawArrays(GL_LINES, 0, numLine);
+		glDrawArrays(GL_LINES, 0, numLine * 2);
 
 		glLineWidth(1.0f);
 	}

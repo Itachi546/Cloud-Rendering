@@ -89,6 +89,7 @@
     <ClCompile Include="Source\imgui-service.cpp" />
     <ClCompile Include="Source\main.cpp" />
     <ClCompile Include="Source\noise-generator\noise-generator.cpp" />
+    <ClCompile Include="Source\utils.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Source\cloud-generator.h" />
@@ -97,6 +98,7 @@
     <ClInclude Include="Source\imgui-service.h" />
     <ClInclude Include="Source\logger.h" />
     <ClInclude Include="Source\noise-generator\noise-generator.h" />
+    <ClInclude Include="Source\utils.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="Shaders\line.frag" />

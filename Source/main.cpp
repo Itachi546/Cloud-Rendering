@@ -3,6 +3,7 @@
 #include "logger.h"
 #include "cloud-generator.h"
 #include "debug-draw.h"
+#include "utils.h"
 
 #include <iostream>
 
@@ -10,6 +11,9 @@ struct WindowProps {
 	GLFWwindow* window;
 	int width;
 	int height;
+
+	float mouseX;
+	float mouseY;
 };
 
 WindowProps gWindowProps = {
@@ -29,6 +33,11 @@ static void on_key_press(GLFWwindow* window, int key, int scancode, int action, 
 		glfwSetWindowShouldClose(window, true);
 }
 
+static void on_mouse_move(GLFWwindow* window, double mouseX, double mouseY) {
+	gWindowProps.mouseX = static_cast<float>(mouseX);
+	gWindowProps.mouseY = static_cast<float>(mouseY);
+}
+
 void GLAPIENTRY
 MessageCallback(GLenum source,
 	GLenum type,
@@ -42,12 +51,6 @@ MessageCallback(GLenum source,
 	fprintf(stderr, "GL CALLBACK: %s type = 0x%x, severity = 0x%x, message = %s\n",
 		(type == GL_DEBUG_TYPE_ERROR ? "** GL ERROR **" : ""),
 		type, severity, message);
-}
-
-void SelectableTexture3D(GLuint textureHandle, float* layer, int* channel) {
-	ImGui::SliderFloat("Layer", layer, 0.0f, 1.0f);
-	ImGui::Combo("Channel", channel, "R\0G\0B\0A\0");
-	ImGuiService::Image3D((ImTextureID)(uint64_t)textureHandle, ImVec2{ 256.0f, 256.0f }, *layer, *channel);
 }
 
 bool CreateNoiseWidget(const char* name, NoiseParams* params) {
@@ -79,11 +82,15 @@ int main() {
 
 	glfwSetWindowSizeCallback(window, on_window_resize);
 	glfwSetKeyCallback(window, on_key_press);
+	glfwSetCursorPosCallback(window, on_mouse_move);
 	glfwMakeContextCurrent(window);
 
-	gladLoadGLLoader((GLADloadproc)glfwGetProcAddress);
-	logger::Debug("Initialized GLAD ...");
+	if (gladLoadGLLoader((GLADloadproc)glfwGetProcAddress) == -1) {
+		std::cerr << "Failed to initialize OpenGL" << std::endl;
+		return -1;
+	}
 
+	logger::Debug("Initialized GLAD ...");
 	glEnable(GL_DEBUG_OUTPUT);
 	logger::Debug("Enabled Debug Callback ...");
 	glDebugMessageCallback(MessageCallback, 0);
@@ -109,9 +116,11 @@ int main() {
 	NoiseGenerator::GetInstance()->Initialize();
 	std::unique_ptr<CloudGenerator> cloudGenerator = std::make_unique<CloudGenerator>();
 	cloudGenerator->Initialize();
+
 	float angle = 0.0f;
+	glm::vec3 camPos = glm::vec3(0.0f, -4.0f, -4.0f);
 	glm::mat4 P = glm::perspective(glm::radians(60.0f), float(gFBOWidth) / float(gFBOHeight), 0.3f, 100.0f);
-	glm::mat4 V = glm::lookAt(glm::vec3(0.0f, -4.0f, -4.0f), glm::vec3(0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+	glm::mat4 V = glm::lookAt(camPos, glm::vec3(0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
 	glm::mat4 M = glm::mat4(1.0f);
 	glm::mat4 VP = P * V * M;
 
@@ -121,6 +130,22 @@ int main() {
 		ImGuiService::NewFrame();
 
 		ImGuiService::RenderDockSpace();
+
+		glm::vec2 ndcCoord{ (gWindowProps.mouseX / gWindowProps.width) * 2.0f - 1.0f,
+			  1.0f - 2.0f * (gWindowProps.mouseY / gWindowProps.height),
+		};
+
+		glm::vec3 r0 = glm::vec3(0.1f, 2.0f, -4.0f);
+		r0 = glm::rotate(glm::mat4(1.0f), float(glfwGetTime() * 0.1f), glm::vec3(1.0f)) * glm::vec4(r0, 0.0f);
+		Ray ray{ r0 , glm::normalize(-r0)};
+		DebugDraw::AddLine(ray.origin, ray.origin + ray.direction * 10.0f, {1.0f, 0.0f, 0.0f});
+
+		glm::vec2 t{ 0.0f, 0.0f };
+		if (Utils::RayBoxIntersection(ray, cloudGenerator->aabbMin, cloudGenerator->aabbMax, t)) {
+			glm::vec3 p0 = ray.origin + t.x * ray.direction;
+			glm::vec3 p1 = ray.origin + t.y * ray.direction;
+			DebugDraw::AddLine(p0, p1, {0.0f, 1.0f, 0.0f});
+		}
 
 		mainFBO.bind();
 		mainFBO.setClearColor(0.3f, 0.3f, 0.3f, 1.0f);
