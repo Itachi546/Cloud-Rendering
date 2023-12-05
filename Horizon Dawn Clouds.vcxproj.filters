@@ -27,6 +27,15 @@
     <ClCompile Include="Source\noise-generator\noise-generator.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="Source\cloud-generator.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\debug-draw.h">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\debug-draw.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Source\imgui-service.h">
@@ -44,8 +53,13 @@
     <ClInclude Include="Source\noise-generator\noise-generator.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="Source\cloud-generator.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="Shaders\worley.comp" />
+    <None Include="Shaders\line.frag" />
+    <None Include="Shaders\line.vert" />
   </ItemGroup>
 </Project>

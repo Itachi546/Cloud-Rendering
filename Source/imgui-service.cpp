@@ -155,8 +155,6 @@ namespace ImGuiService {
 
 		window->DrawList->AddCallback(BeginDraw3DTex, &gState.textureData.back());
 		AddRect(bbMin, bbMax);
-		//window->DrawList->PrimReserve(6, 4);
-		//window->DrawList->PrimRectUV(bbMin, bbMax, uv0, uv1, ImColor{ 1.0f, 1.0f, 1.0f, 1.0f });
 		window->DrawList->AddCallback(ImDrawCallback_ResetRenderState, nullptr);
 	}
 

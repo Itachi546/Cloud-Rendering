@@ -20,10 +20,6 @@ void NoiseGenerator::GenerateWorley3D(const NoiseParams* params, const GLTexture
 
 	mWorleyShader3D->use();
 
-	uint32_t workGroupX = (texture->width + 7) / 8;
-	uint32_t workGroupY = (texture->height + 7) / 8;
-	uint32_t workGroupZ = (texture->depth + 7) / 8;
-
 	glm::vec4 amp_freq_lac_per{params->amplitude, params->frequency, params->lacunarity, params->persistence};
 	mWorleyShader3D->setVec4("uAmp_Freq_Lac_Per", &amp_freq_lac_per[0]);
 	mWorleyShader3D->setInt("uNumOctaves", params->numOctaves);
@@ -41,5 +37,8 @@ void NoiseGenerator::GenerateWorley3D(const NoiseParams* params, const GLTexture
 
 	mWorleyShader3D->setTexture(0, texture->handle, GL_READ_WRITE, texture->internalFormat, true);
 
+	uint32_t workGroupX = (texture->width + 7) / 8;
+	uint32_t workGroupY = (texture->height + 7) / 8;
+	uint32_t workGroupZ = (texture->depth + 7) / 8;
 	glDispatchCompute(workGroupX, workGroupY, workGroupZ);
 }

@@ -1,7 +1,8 @@
 #include "gl-utils.h"
 #include "imgui-service.h"
 #include "logger.h"
-#include "noise-generator/noise-generator.h"
+#include "cloud-generator.h"
+#include "debug-draw.h"
 
 #include <iostream>
 
@@ -41,19 +42,6 @@ MessageCallback(GLenum source,
 	fprintf(stderr, "GL CALLBACK: %s type = 0x%x, severity = 0x%x, message = %s\n",
 		(type == GL_DEBUG_TYPE_ERROR ? "** GL ERROR **" : ""),
 		type, severity, message);
-}
-
-GLTexture create3DTexture() {
-	TextureCreateInfo createInfo = {
-		128, 128, 128, GL_RGBA,
-		GL_RGBA32F,
-		GL_TEXTURE_3D,
-		GL_FLOAT
-	};
-
-	GLTexture texture;
-	texture.init(&createInfo);
-	return texture;
 }
 
 void SelectableTexture3D(GLuint textureHandle, float* layer, int* channel) {
@@ -117,20 +105,15 @@ int main() {
 	GLFramebuffer mainFBO;
 	mainFBO.init({ Attachment{ 0, &colorAttachment } }, nullptr);
 
-	GLTexture layeredTexture = create3DTexture();
-
-	NoiseGenerator* noiseGenerator = NoiseGenerator::GetInstance();
-	noiseGenerator->Initialize();
-
-	NoiseParams worleyParams[4];
-	worleyParams[0] = { 0.5f, 2.0f, 2.0f, 0.5f, 2, glm::vec3(0.0f) };
-	worleyParams[1] = { 0.5f, 4.0f, 2.0f, 0.5f, 4, glm::vec3(1.0f) };
-	worleyParams[2] = { 0.5f, 8.0f, 2.0f, 0.5f, 6, glm::vec3(1.0f) };
-	worleyParams[3] = { 0.5f, 8.0f, 2.0f, 0.5f, 6, glm::vec3(1.0f) };
-
-	noiseGenerator->GenerateWorley3D(&worleyParams[0], &layeredTexture, 0);
-	noiseGenerator->GenerateWorley3D(&worleyParams[1], &layeredTexture, 1);
-	noiseGenerator->GenerateWorley3D(&worleyParams[2], &layeredTexture, 2);
+	DebugDraw::Initialize();
+	NoiseGenerator::GetInstance()->Initialize();
+	std::unique_ptr<CloudGenerator> cloudGenerator = std::make_unique<CloudGenerator>();
+	cloudGenerator->Initialize();
+	float angle = 0.0f;
+	glm::mat4 P = glm::perspective(glm::radians(60.0f), float(gFBOWidth) / float(gFBOHeight), 0.3f, 100.0f);
+	glm::mat4 V = glm::lookAt(glm::vec3(0.0f, -4.0f, -4.0f), glm::vec3(0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+	glm::mat4 M = glm::mat4(1.0f);
+	glm::mat4 VP = P * V * M;
 
 	while (!glfwWindowShouldClose(window)) {
 		glfwPollEvents();
@@ -143,6 +126,8 @@ int main() {
 		mainFBO.setClearColor(0.3f, 0.3f, 0.3f, 1.0f);
 		mainFBO.setViewport(gFBOWidth, gFBOHeight);
 		mainFBO.clear(true);
+		cloudGenerator->Render();
+		DebugDraw::Render(VP, glm::vec2(gFBOWidth, gFBOHeight));
 		mainFBO.unbind();
 
 		glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
@@ -159,26 +144,20 @@ int main() {
 		ImGui::End();
 
 		ImGui::Begin("Options");
-
-		ImGui::PushID(1);
-		ImGui::Text("Noise Texture");
-		static float layer = 0;
-		static int channel = 0;
-		SelectableTexture3D(layeredTexture.handle, &layer, &channel);
-		if (CreateNoiseWidget("Noise Params", &worleyParams[channel])) {
-			noiseGenerator->GenerateWorley3D(&worleyParams[channel], &layeredTexture, channel);
+		if (ImGui::SliderAngle("Rotation", &angle)) {
+			M = glm::rotate(glm::mat4(1.0f), angle, glm::vec3(0.0f, 1.0f, 0.0f));
+			VP = P * V * M;
 		}
 
-		ImGui::Separator();
-		ImGui::PopID();
-
+		cloudGenerator->AddUI();
 		ImGui::End();
 
 		ImGuiService::Render(window);
 
 		glfwSwapBuffers(window);
 	}
-
+	DebugDraw::Shutdown();
+	NoiseGenerator::GetInstance()->Initialize();
     ImGuiService::Shutdown();
 
 	glfwDestroyWindow(window);

@@ -157,6 +157,9 @@ inline void InitializeDepthTexture(TextureCreateInfo* createInfo,
 
 struct GLTexture {
 	void init(TextureCreateInfo* createInfo, void* data = nullptr);
+	void destroy() {
+		glDeleteTextures(1, &handle);
+	}
 
 	GLuint handle;
 	uint32_t width;

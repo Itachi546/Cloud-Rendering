@@ -82,12 +82,16 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="Source\cloud-generator.cpp" />
+    <ClCompile Include="Source\debug-draw.cpp" />
+    <ClCompile Include="Source\debug-draw.h" />
     <ClCompile Include="Source\gl-utils.cpp" />
     <ClCompile Include="Source\imgui-service.cpp" />
     <ClCompile Include="Source\main.cpp" />
     <ClCompile Include="Source\noise-generator\noise-generator.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Source\cloud-generator.h" />
     <ClInclude Include="Source\gl-utils.h" />
     <ClInclude Include="Source\glm-includes.h" />
     <ClInclude Include="Source\imgui-service.h" />
@@ -95,6 +99,8 @@
     <ClInclude Include="Source\noise-generator\noise-generator.h" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="Shaders\line.frag" />
+    <None Include="Shaders\line.vert" />
     <None Include="Shaders\worley.comp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
