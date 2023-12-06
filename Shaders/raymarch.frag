@@ -10,43 +10,60 @@ void swap(inout float a, inout float b) {
    b = c;
 }
 
-uniform vec3 uAABBMin;
-uniform vec3 uAABBMax;
+#define M_PI  3.141592
+
+uniform vec3 uAABBSize;
 
 uniform mat4 uInvP;
 uniform mat4 uInvV;
-
 uniform vec3 uCamPos;
+uniform float uCloudScale;
+uniform vec3 uCloudOffset;
+uniform float uDensityMultiplier;
+uniform float uDensityThreshold;
 
 uniform sampler3D uNoiseTex1;
 uniform sampler3D uNoiseTex2;
+uniform vec3 uLightDirection;
+uniform vec4 uLightColor;
 
-bool RayBoxIntersection(vec3 r0, vec3 rd, vec3 min, vec3 max, out vec2 t)
+const int MAX_RAYMARCH_STEP = 32;
+const int MAX_LIGHTMARCH_STEP = 16;
+const float PHASE_G = 0.3f;
+
+float getDensity(vec3 p) {
+   vec4 noiseTex1 = texture(uNoiseTex1, p * 0.1 * uCloudScale + uCloudOffset).rgba;
+   float density = noiseTex1.r * noiseTex1.g;
+   density = density - noiseTex1.b + noiseTex1.a;
+   return max(density - uDensityThreshold, 0.0f) * uDensityMultiplier;
+}
+
+// Hash by David_Hoskins
+#define UI0 1597334673U
+#define UI1 3812015801U
+#define UI2 uvec2(UI0, UI1)
+#define UI3 uvec3(UI0, UI1, 2798796415U)
+#define UIF (1.0 / float(0xffffffffU))
+
+vec2 hash22(vec2 p)
 {
-   vec3 invRd = 1.0f /	rd;
-   vec3	t0 = (min -	r0)	* invRd;
-   vec3	t1 = (max -	r0)	* invRd;
+	uvec2 q = uvec2(ivec2(p)) * UI2;
+	q = (q.x ^ q.y) * UI2;
+	return -1. + 2. * vec2(q) * UIF;
+}
 
-   float tMin =	t0.x;
-   float tMax =	t1.x;
-   if (tMin	> tMax)	swap(tMin, tMax);
-   
-   if (t0.y	> t1.y)	swap(t0.y, t1.y);
-
-   if (t0.y	> tMax || tMin > t1.y) return false;
-   tMin	= max(t0.y,	tMin);
-   tMax	= min(t1.y,	tMax);
-
-   if (t0.z	> t1.z)	swap(t0.z, t1.z);
-
-   if (t0.z	> tMax || tMin > t1.z) return false;
-   tMin	= max(t0.z,	tMin);
-   tMax	= min(t1.z,	tMax);
-
-   t.x = tMin;
-   t.y = tMax;
-   
-   return true;
+bool RayBoxIntersection( in vec3 ro, in vec3 rd, vec3 boxSize, out vec2 t) 
+{
+    vec3 m = 1.0/rd; // can precompute if traversing a set of aligned boxes
+    vec3 n = m*ro;   // can precompute if traversing a set of aligned boxes
+    vec3 k = abs(m)*boxSize;
+    vec3 t1 = -n - k;
+    vec3 t2 = -n + k;
+    float tN = max( max( t1.x, t1.y ), t1.z );
+    float tF = min( min( t2.x, t2.y ), t2.z );
+    if( tN>tF || tF<0.0) return false;
+    t = vec2( tN, tF );
+    return true;
 }
 
 vec3 GetRayDir(vec2 ndcCoord) {
@@ -59,17 +76,62 @@ vec3 GetRayDir(vec2 ndcCoord) {
   return normalize(worldCoord.xyz);
 }
 
+float phase(const float g, const float cosTheta)
+{
+    float denom = 1 + g * g - 2 * g * cosTheta;
+    return 1 / (4 * M_PI) * (1 - g * g) / (denom * sqrt(denom));
+}
+
+float lightMarch(vec3 r0, vec3 rd) {
+  vec2 t = vec2(0.0f);
+  if(!RayBoxIntersection(r0, rd, uAABBSize, t)) return 0.0f; 
+
+  float stepSize = t.y / float(MAX_LIGHTMARCH_STEP);
+
+  float opticalDepth = 0.0f;
+  for(int i = 0; i < MAX_LIGHTMARCH_STEP; ++i) {
+     opticalDepth += max(getDensity(r0) * stepSize, 0.0f);
+     r0 += rd * stepSize;
+  }
+
+  return exp(-opticalDepth);
+}
+
 void main() {
    vec3 r0 = uCamPos;
    vec3 rd = GetRayDir(uv);
 
-   vec3 color = vec3(0.0f); 
+   vec3 backgroundColor = vec3(0.5f, 0.7f, 1.0f); 
+   vec3 color = backgroundColor;
    vec2 t = vec2(0.0f);
-   if(RayBoxIntersection(r0, rd, uAABBMin, uAABBMax, t)) {
-      float dist = t.y - t.x;
-      float t = exp(-0.9 * dist);
-      color = t * color + vec3(1.0f) * (1.0f - t);
+
+   if(RayBoxIntersection(r0, rd, uAABBSize, t)) {
+
+      float dstInsideBox = t.y - t.x;
+      float stepSize = dstInsideBox / float(MAX_RAYMARCH_STEP);
+      vec3 p = r0 + t.x * rd;
+
+      float transmittance = 1.0f;
+      float totalEnergy = 0.0f;
+
+      float cosTheta = dot(uLightDirection, rd);
+	  for(int i	= 0; i < MAX_RAYMARCH_STEP;	++i) {
+          float density = getDensity(p);
+
+          float lightTransmittance = lightMarch(p, uLightDirection);
+          totalEnergy += lightTransmittance * phase(PHASE_G, cosTheta) * transmittance * density * stepSize;
+
+          transmittance *= exp(-density * stepSize);
+
+          if(transmittance < 0.001f) break;
+
+		  p	+= rd *	stepSize;
+	  }
+      vec3 cloudColor = totalEnergy * uLightColor.xyz * uLightColor.w;
+      color = transmittance * backgroundColor + cloudColor;
    }
-   color *= texture(uNoiseTex1, vec3(uv * 0.5f + 0.5f, 0.1f)).g;
+   color /=(1.0 + color);
+   color = pow(color, vec3(0.4545));
+
    fragColor = vec4(color, 1.0f);
 }

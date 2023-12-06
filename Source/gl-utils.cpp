@@ -258,6 +258,12 @@ void GLTexture::init(TextureCreateInfo* createInfo, void* data)
 	GLuint target = createInfo->target;
 	glGenTextures(1, &handle);
 	glBindTexture(target, handle);
+
+	glTexParameteri(target, GL_TEXTURE_MIN_FILTER, createInfo->minFilterType);
+	glTexParameteri(target, GL_TEXTURE_MAG_FILTER, createInfo->magFilterType);
+	glTexParameteri(target, GL_TEXTURE_WRAP_S, createInfo->wrapType);
+	glTexParameteri(target, GL_TEXTURE_WRAP_T, createInfo->wrapType);
+
 	if (target == GL_TEXTURE_2D) {
 		glTexImage2D(target,
 			0,
@@ -269,6 +275,7 @@ void GLTexture::init(TextureCreateInfo* createInfo, void* data)
 			createInfo->dataType, data);
 	}
 	else {
+		glTexParameteri(target, GL_TEXTURE_WRAP_R, createInfo->wrapType);
 		glTexImage3D(target,
 			0, 
 			createInfo->internalFormat,
@@ -280,13 +287,6 @@ void GLTexture::init(TextureCreateInfo* createInfo, void* data)
 			createInfo->dataType,
 			data);
 	}
-	glTexParameteri(target, GL_TEXTURE_MIN_FILTER, createInfo->minFilterType);
-	glTexParameteri(target, GL_TEXTURE_MAG_FILTER, createInfo->magFilterType);
-	glTexParameteri(target, GL_TEXTURE_WRAP_S, createInfo->wrapType);
-	glTexParameteri(target, GL_TEXTURE_WRAP_T, createInfo->wrapType);
-	glTexParameteri(target, GL_TEXTURE_WRAP_R, createInfo->wrapType);
-
 	if (createInfo->generateMipmap)
 		glGenerateMipmap(target);
-	glBindTexture(target, 0);
 }

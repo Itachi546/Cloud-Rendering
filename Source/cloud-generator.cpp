@@ -3,6 +3,7 @@
 #include "gl-utils.h"
 #include "imgui-service.h"
 #include "debug-draw.h"
+#include "logger.h"
 
 void CloudGenerator::Initialize()
 {
@@ -21,26 +22,25 @@ void CloudGenerator::Initialize()
 	mTexture2 = std::make_unique<GLTexture>();
 	mTexture2->init(&createInfo);
 
-	mTex1Params[0] = { 0.5f, 2.0f, 2.0f, 0.5f, 1, glm::vec3(0.4f, 0.6, 0.5) };
+	mTex1Params[0] = { 1.0f, 1.0f, 1.0f, 0.5f, 7, glm::vec3(0.4f, 0.6, 0.5), NoiseType::Perlin };
 	mTex1Params[1] = { 0.5f, 4.0f, 2.0f, 0.5f, 2, glm::vec3(1.4f, 1.593f, 1.539f) };
 	mTex1Params[2] = { 0.5f, 8.0f, 2.0f, 0.5f, 4, glm::vec3(2.8f, 2.99f, 2.48f) };
 	mTex1Params[3] = { 0.5f, 8.0f, 2.0f, 0.5f, 6, glm::vec3(4.8f, 5.f, 5.43f) };
 
 	mNoiseGenerator = NoiseGenerator::GetInstance();
-	mNoiseGenerator->GenerateWorley3D(&mTex1Params[0], mTexture1.get(), 0);
-	mNoiseGenerator->GenerateWorley3D(&mTex1Params[1], mTexture1.get(), 1);
-	mNoiseGenerator->GenerateWorley3D(&mTex1Params[2], mTexture1.get(), 2);
-	mNoiseGenerator->GenerateWorley3D(&mTex1Params[3], mTexture1.get(), 3);
+	mNoiseGenerator->Generate(&mTex1Params[0], mTexture1.get(), 0);
+	mNoiseGenerator->Generate(&mTex1Params[1], mTexture1.get(), 1);
+	mNoiseGenerator->Generate(&mTex1Params[2], mTexture1.get(), 2);
+	mNoiseGenerator->Generate(&mTex1Params[3], mTexture1.get(), 3);
 
 	mTex2Params[0] = { 0.5f, 4.0f, 2.0f, 0.5f, 1, glm::vec3(29.4f, 25.6, 27.5) };
 	mTex2Params[1] = { 0.5f, 5.0f, 2.0f, 0.5f, 2, glm::vec3(35.4f, 30.593f, 39.539f) };
 	mTex2Params[2] = { 0.5f, 6.0f, 2.0f, 0.5f, 4, glm::vec3(40.8f, 44.99f, 45.48f) };
-	mNoiseGenerator->GenerateWorley3D(&mTex2Params[0], mTexture2.get(), 0);
-	mNoiseGenerator->GenerateWorley3D(&mTex2Params[1], mTexture2.get(), 1);
-	mNoiseGenerator->GenerateWorley3D(&mTex2Params[2], mTexture2.get(), 2);
+	mNoiseGenerator->Generate(&mTex2Params[0], mTexture2.get(), 0);
+	mNoiseGenerator->Generate(&mTex2Params[1], mTexture2.get(), 1);
+	mNoiseGenerator->Generate(&mTex2Params[2], mTexture2.get(), 2);
 
-	aabbMin = { -2.0f, -1.5f, -2.0f };
-	aabbMax = { 2.0f, 1.5f, 2.0f };
+	aabbSize = { 2.0f, 1.5f, 2.0f };
 
 	GLShader rayMarchVS("Shaders/raymarch.vert");
 	GLShader rayMarchFS("Shaders/raymarch.frag");
@@ -88,51 +88,75 @@ static bool CreateNoiseWidget(const char* name, NoiseParams* params) {
 void CloudGenerator::AddUI()
 {
 	ImGui::Text("Bounding Box");
-	ImGui::DragFloat3("Min", &aabbMin[0], 0.1f);
-	ImGui::DragFloat3("Max", &aabbMax[0], 0.1f);
+	ImGui::DragFloat3("AABB", &aabbSize[0], 0.1f);
+	ImGui::DragFloat("CloudScale", &mCloudScale, 0.1f);
+	ImGui::DragFloat3("CloudOffset", &mCloudOffset[0], 0.1f);
+	ImGui::SliderFloat("DensityMultiplier", &mDensityMultiplier, 0.0f, 10.0f);
+	ImGui::SliderFloat("DensityThreshold", &mDensityThreshold, 0.0f, 1.0f);
+	ImGui::Checkbox("Show AABB", &mShowAABB);
+	ImGui::ColorEdit3("Light Color", &mLightColor[0]);
+	ImGui::DragFloat("Light Intensity", &mLightColor.w, 0.1f);
+
+	static float theta = glm::radians(90.0f), phi = 0.0f;
+	ImGui::Text("Light Direction");
+	bool changed = ImGui::SliderAngle("phi", &phi);
+	changed |= ImGui::SliderAngle("theta", &theta);
+	if (changed)
+		mLightDirection = glm::vec3{ sin(theta) * cos(phi), sin(theta) * sin(phi), cos(theta) };
+
+	ImGui::Spacing();
 	ImGui::Separator();
 
-	if (ImGui::CollapsingHeader("Noise Texture1")) {
+	if (ImGui::CollapsingHeader("Noise Texture1", ImGuiTreeNodeFlags_DefaultOpen)) {
 		ImGui::PushID(1);
 		static float layer1 = 0;
 		static int channel1 = 0;
 		SelectableTexture3D(mTexture1->handle, ImVec2{256, 256.0f}, &layer1, &channel1, 4);
 		if (CreateNoiseWidget("Noise Params", &mTex1Params[channel1])) {
-			mNoiseGenerator->GenerateWorley3D(&mTex1Params[channel1], mTexture1.get(), channel1);
+			mNoiseGenerator->Generate(&mTex1Params[channel1], mTexture1.get(), channel1);
 		}
 		ImGui::PopID();
 		ImGui::Separator();
 	}
 
 
-	if (ImGui::CollapsingHeader("Noise Texture2")) {
+	if (ImGui::CollapsingHeader("Noise Texture2", ImGuiTreeNodeFlags_DefaultOpen)) {
 		ImGui::PushID(2);
 		static float layer2 = 0;
 		static int channel2 = 0;
 		SelectableTexture3D(mTexture2->handle, ImVec2{64.0f, 64.0f}, &layer2, &channel2, 3);
 		if (CreateNoiseWidget("Noise Params", &mTex2Params[channel2]))
-			mNoiseGenerator->GenerateWorley3D(&mTex2Params[channel2], mTexture2.get(), channel2);
+			mNoiseGenerator->Generate(&mTex2Params[channel2], mTexture2.get(), channel2);
 		ImGui::PopID();
 		ImGui::Separator();
 	}
 }
 
-void CloudGenerator::Render(glm::mat4 P, glm::mat4 V, glm::vec3 camPos)
+void CloudGenerator::Render(glm::mat4 P, glm::mat4 V, glm::vec3 camPos, float dt)
 {
-	DebugDraw::AddRect(aabbMin, aabbMax);
+	if(mShowAABB)
+		DebugDraw::AddRect(-aabbSize, aabbSize);
 
 	glm::mat4 invP = glm::inverse(P);
 	glm::mat4 invV = glm::inverse(V);
 
+	mCloudOffset.x += dt * 0.1f;
+
 	glUseProgram(0);
 	mRayMarchProgram->use();
-	mRayMarchProgram->setVec3("uAABBMin", &aabbMin[0]);
-	mRayMarchProgram->setVec3("uAABBMax", &aabbMax[0]);
+	glm::vec3 boxSize = aabbSize * 0.5f;
+	mRayMarchProgram->setVec3("uAABBSize", &aabbSize[0]);
 	mRayMarchProgram->setVec3("uCamPos", &camPos[0]);
 	mRayMarchProgram->setMat4("uInvP", &invP[0][0]);
 	mRayMarchProgram->setMat4("uInvV", &invV[0][0]);
 	mRayMarchProgram->setTexture("uNoiseTex1", 0, mTexture1->handle, true);
 	mRayMarchProgram->setTexture("uNoiseTex2", 1, mTexture2->handle, true);
+	mRayMarchProgram->setVec3("uCloudOffset", &mCloudOffset[0]);
+	mRayMarchProgram->setFloat("uCloudScale", mCloudScale);
+	mRayMarchProgram->setFloat("uDensityMultiplier", mDensityMultiplier);
+	mRayMarchProgram->setFloat("uDensityThreshold", mDensityThreshold);
+	mRayMarchProgram->setVec3("uLightDirection", &mLightDirection[0]);
+	mRayMarchProgram->setVec4("uLightColor", &mLightColor[0]);
 
 	glBindBuffer(GL_ARRAY_BUFFER, mQuadBuffer->handle);
 	glEnableVertexAttribArray(0);

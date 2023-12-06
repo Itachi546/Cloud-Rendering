@@ -12,8 +12,16 @@ struct WindowProps {
 	int width;
 	int height;
 
-	float mouseX;
-	float mouseY;
+	float mouseX = 0.0f;
+	float mouseY = 0.0f;
+
+	float mDx = 0.0f;
+	float mDy = 0.0f;
+
+	glm::mat4 P;
+	glm::mat4 V;
+
+	bool mouseDown = false;
 };
 
 WindowProps gWindowProps = {
@@ -34,8 +42,24 @@ static void on_key_press(GLFWwindow* window, int key, int scancode, int action, 
 }
 
 static void on_mouse_move(GLFWwindow* window, double mouseX, double mouseY) {
-	gWindowProps.mouseX = static_cast<float>(mouseX);
-	gWindowProps.mouseY = static_cast<float>(mouseY);
+	float x = static_cast<float>(mouseX);
+	float y = static_cast<float>(mouseY);
+	gWindowProps.mDx = x - gWindowProps.mouseX;
+	gWindowProps.mDy = y - gWindowProps.mouseY;
+
+	gWindowProps.mouseX = x;
+	gWindowProps.mouseY = y;
+}
+
+static void on_mouse_down(GLFWwindow* window, int button, int action, int mods) {
+	if (action == GLFW_RELEASE) {
+		if (button == GLFW_MOUSE_BUTTON_LEFT)
+			gWindowProps.mouseDown = false;
+	}
+	else {
+		if (button == GLFW_MOUSE_BUTTON_LEFT)
+			gWindowProps.mouseDown = true;
+	}
 }
 
 void GLAPIENTRY
@@ -53,17 +77,15 @@ MessageCallback(GLenum source,
 		type, severity, message);
 }
 
-bool CreateNoiseWidget(const char* name, NoiseParams* params) {
-	bool changed = false;   
-	if(ImGui::CollapsingHeader(name)) {
-		changed = ImGui::SliderFloat("Amplitude", &params->amplitude, 0.0f, 1.0f);
-		changed |= ImGui::SliderFloat("Frequency", &params->frequency, 0.0f, 10.0f);
-		changed |= ImGui::SliderFloat("Lacunarity", &params->lacunarity, 0.0f, 2.0f);
-		changed |= ImGui::SliderFloat("Persitence", &params->persistence, 0.0f, 1.0f);
-		changed |= ImGui::SliderInt("Octave", &params->numOctaves, 1, 8);
-		changed |= ImGui::DragFloat3("Offset", &params->offset[0], 0.1f);
-	}
-	return changed;
+static glm::vec3 UpdateViewMatrix(float camDist, float yaw, float pitch) {
+	glm::vec3 target = glm::vec3(0.0f);
+	glm::vec3 camPos = glm::vec3{ cos(pitch) * cos(yaw), sin(pitch), cos(pitch) * sin(yaw)} *camDist;
+
+	glm::vec3 forward = glm::normalize(target - camPos);
+	glm::vec3 right = glm::cross(glm::vec3(0.0f, 1.0f, 0.0f), forward);
+	glm::vec3 up = glm::cross(forward, right);
+	gWindowProps.V = glm::lookAt(camPos, target, up);
+	return camPos;
 }
 
 int main() {
@@ -83,7 +105,10 @@ int main() {
 	glfwSetWindowSizeCallback(window, on_window_resize);
 	glfwSetKeyCallback(window, on_key_press);
 	glfwSetCursorPosCallback(window, on_mouse_move);
+	glfwSetMouseButtonCallback(window, on_mouse_down);
+	glfwSwapInterval(1);
 	glfwMakeContextCurrent(window);
+
 
 	if (gladLoadGLLoader((GLADloadproc)glfwGetProcAddress) == -1) {
 		std::cerr << "Failed to initialize OpenGL" << std::endl;
@@ -116,13 +141,16 @@ int main() {
 	NoiseGenerator::GetInstance()->Initialize();
 	std::unique_ptr<CloudGenerator> cloudGenerator = std::make_unique<CloudGenerator>();
 	cloudGenerator->Initialize();
-	glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
 
-	float angle = 0.0f;
-	glm::vec3 camPos = glm::vec3(0.0f, 4.0f, -4.0f);
-	glm::mat4 P = glm::perspective(glm::radians(60.0f), float(gFBOWidth) / float(gFBOHeight), 0.3f, 100.0f);
-	glm::mat4 V = glm::lookAt(camPos, glm::vec3(0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-	glm::mat4 VP = P * V;
+	float camDist = 8.0f;
+	float cameraPitch = glm::radians(45.0f);
+	float cameraYaw = 0.0f;
+	gWindowProps.P = glm::perspective(glm::radians(60.0f), float(gFBOWidth) / float(gFBOHeight), 0.3f, 100.0f);
+	glm::vec3 camPos = UpdateViewMatrix(camDist, cameraYaw, cameraPitch);
+	glm::mat4 VP = gWindowProps.P * gWindowProps.V;
+
+	float startTime = (float)glfwGetTime();
+	float dt = 1.0f / 60.0f;
 
 	while (!glfwWindowShouldClose(window)) {
 		glfwPollEvents();
@@ -131,11 +159,19 @@ int main() {
 
 		ImGuiService::RenderDockSpace();
 
+		if (gWindowProps.mouseDown) {
+			cameraYaw += gWindowProps.mDx * dt * 0.1f;
+			cameraPitch += gWindowProps.mDy * dt * 0.1f;
+			cameraPitch = glm::clamp(cameraPitch, -glm::pi<float>() * 0.25f, glm::pi<float>() * 0.25f);
+			camPos = UpdateViewMatrix(camDist, cameraYaw, cameraPitch);
+			VP = gWindowProps.P * gWindowProps.V;
+		}
+
 		mainFBO.bind();
-		mainFBO.setClearColor(0.3f, 0.3f, 0.3f, 1.0f);
+		mainFBO.setClearColor(0.5f, 0.7f, 1.0f, 1.0f);
 		mainFBO.setViewport(gFBOWidth, gFBOHeight);
 		mainFBO.clear(true);
-		cloudGenerator->Render(P, V, camPos);
+		cloudGenerator->Render(gWindowProps.P, gWindowProps.V, camPos, dt);
 		DebugDraw::Render(VP, glm::vec2(gFBOWidth, gFBOHeight));
 		mainFBO.unbind();
 
@@ -165,9 +201,16 @@ int main() {
 		ImGuiService::Render(window);
 
 		glfwSwapBuffers(window);
+
+		float endTime = (float)glfwGetTime();
+		dt = endTime - startTime;
+		startTime = endTime;
+
+		gWindowProps.mDx = 0.0f;
+		gWindowProps.mDy = 0.0f;
 	}
 	DebugDraw::Shutdown();
-	NoiseGenerator::GetInstance()->Initialize();
+	NoiseGenerator::GetInstance()->Shutdown();
     ImGuiService::Shutdown();
 
 	glfwDestroyWindow(window);

@@ -222,7 +222,6 @@ namespace ImGuiService {
 		}
 	}
 
-	
 	void Render(GLFWwindow* window) {
 		glUnmapNamedBuffer(gState.buffer.handle);
 		gState.bufferPtr = 0;

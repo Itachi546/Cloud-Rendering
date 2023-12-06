@@ -4,6 +4,11 @@
 
 #include <memory>
 
+enum class NoiseType {
+	Perlin = 0,
+	Worley
+};
+
 struct NoiseParams {
 	float amplitude;
 	float frequency;
@@ -12,6 +17,7 @@ struct NoiseParams {
 	int numOctaves;
 
 	glm::vec3 offset;
+	NoiseType noiseType = NoiseType::Worley;
 };
 
 struct GLTexture;
@@ -32,12 +38,16 @@ public:
 
 	// channel is used to defined the generation of noise in a specific channel only
 	// 0 - red, 1 - green, 2 - blue, 3 - alpha
-	void GenerateWorley3D(const NoiseParams* params, const GLTexture* texture, int channel = 0);
+	void Generate(const NoiseParams* params, const GLTexture* texture, int channel = 0);
 
+	void Shutdown();
 private:
+
+	void Generate(const NoiseParams* param, const GLTexture* texture, std::unique_ptr<GLComputeProgram>& shader, int channel = 0);
+
 	NoiseGenerator() = default;
 
 	std::unique_ptr<GLComputeProgram> mWorleyShader3D;
-
+	std::unique_ptr<GLComputeProgram> mPerlinShader3D;
 };
 	

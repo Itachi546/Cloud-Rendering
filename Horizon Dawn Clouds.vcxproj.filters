@@ -69,5 +69,6 @@
     <None Include="Shaders\line.vert" />
     <None Include="Shaders\raymarch.frag" />
     <None Include="Shaders\raymarch.vert" />
+    <None Include="Shaders\perlin.comp" />
   </ItemGroup>
 </Project>
