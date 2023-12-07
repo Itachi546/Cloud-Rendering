@@ -40,8 +40,6 @@ void CloudGenerator::Initialize()
 	mNoiseGenerator->Generate(&mTex2Params[1], mTexture2.get(), 1);
 	mNoiseGenerator->Generate(&mTex2Params[2], mTexture2.get(), 2);
 
-	aabbSize = { 2.0f, 1.5f, 2.0f };
-
 	GLShader rayMarchVS("Shaders/raymarch.vert");
 	GLShader rayMarchFS("Shaders/raymarch.frag");
 	mRayMarchProgram = std::make_unique<GLProgram>();
@@ -88,14 +86,20 @@ static bool CreateNoiseWidget(const char* name, NoiseParams* params) {
 void CloudGenerator::AddUI()
 {
 	ImGui::Text("Bounding Box");
-	ImGui::DragFloat3("AABB", &aabbSize[0], 0.1f);
-	ImGui::DragFloat("CloudScale", &mCloudScale, 0.1f);
-	ImGui::DragFloat3("CloudOffset", &mCloudOffset[0], 0.1f);
-	ImGui::SliderFloat("DensityMultiplier", &mDensityMultiplier, 0.0f, 10.0f);
-	ImGui::SliderFloat("DensityThreshold", &mDensityThreshold, 0.0f, 1.0f);
 	ImGui::Checkbox("Show AABB", &mShowAABB);
+	ImGui::DragFloat3("AABB", &aabbSize[0], 0.1f);
+	ImGui::Spacing();
+
+	ImGui::SliderFloat("CloudScale", &mCloudScale, 0.0f, 0.1f);
+	ImGui::DragFloat3("CloudOffset", &mCloudOffset[0], 0.1f);
+
+	ImGui::SliderFloat("DensityMultiplier", &mDensityMultiplier, 0.0f, 1.0f);
+	ImGui::SliderFloat("DensityThreshold", &mDensityThreshold, 0.0f, 1.0f);
+	ImGui::SliderFloat4("Layer Contribution", &mLayerContribution[0], 0.0f, 1.0f);
+
 	ImGui::ColorEdit3("Light Color", &mLightColor[0]);
 	ImGui::DragFloat("Light Intensity", &mLightColor.w, 0.1f);
+	ImGui::SliderFloat("PhaseG", &mPhaseG, 0.0f, 1.0f);
 
 	static float theta = glm::radians(90.0f), phi = 0.0f;
 	ImGui::Text("Light Direction");
@@ -157,6 +161,8 @@ void CloudGenerator::Render(glm::mat4 P, glm::mat4 V, glm::vec3 camPos, float dt
 	mRayMarchProgram->setFloat("uDensityThreshold", mDensityThreshold);
 	mRayMarchProgram->setVec3("uLightDirection", &mLightDirection[0]);
 	mRayMarchProgram->setVec4("uLightColor", &mLightColor[0]);
+	mRayMarchProgram->setVec4("uLayerContribution", &mLayerContribution[0]);
+	mRayMarchProgram->setFloat("uPhaseG", mPhaseG);
 
 	glBindBuffer(GL_ARRAY_BUFFER, mQuadBuffer->handle);
 	glEnableVertexAttribArray(0);

@@ -7,6 +7,8 @@
 
 #include <iostream>
 
+#define ENABLE_CAMERA 1
+
 struct WindowProps {
 	GLFWwindow* window;
 	int width;
@@ -142,10 +144,10 @@ int main() {
 	std::unique_ptr<CloudGenerator> cloudGenerator = std::make_unique<CloudGenerator>();
 	cloudGenerator->Initialize();
 
-	float camDist = 8.0f;
+	float camDist = -500.0f;
 	float cameraPitch = glm::radians(45.0f);
 	float cameraYaw = 0.0f;
-	gWindowProps.P = glm::perspective(glm::radians(60.0f), float(gFBOWidth) / float(gFBOHeight), 0.3f, 100.0f);
+	gWindowProps.P = glm::perspective(glm::radians(60.0f), float(gFBOWidth) / float(gFBOHeight), 1.0f, 1000.0f);
 	glm::vec3 camPos = UpdateViewMatrix(camDist, cameraYaw, cameraPitch);
 	glm::mat4 VP = gWindowProps.P * gWindowProps.V;
 
@@ -158,7 +160,7 @@ int main() {
 		ImGuiService::NewFrame();
 
 		ImGuiService::RenderDockSpace();
-
+#if ENABLE_CAMERA
 		if (gWindowProps.mouseDown) {
 			cameraYaw += gWindowProps.mDx * dt * 0.1f;
 			cameraPitch += gWindowProps.mDy * dt * 0.1f;
@@ -166,6 +168,7 @@ int main() {
 			camPos = UpdateViewMatrix(camDist, cameraYaw, cameraPitch);
 			VP = gWindowProps.P * gWindowProps.V;
 		}
+#endif
 
 		mainFBO.bind();
 		mainFBO.setClearColor(0.5f, 0.7f, 1.0f, 1.0f);
@@ -195,6 +198,9 @@ int main() {
 		ImGui::End();
 
 		ImGui::Begin("Options");
+		if (ImGui::DragFloat("CamDist", &camDist, 0.1f)) {
+			UpdateViewMatrix(camDist, cameraYaw, cameraPitch);
+		}
 		cloudGenerator->AddUI();
 		ImGui::End();
 

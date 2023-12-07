@@ -10,7 +10,7 @@ void swap(inout float a, inout float b) {
    b = c;
 }
 
-#define M_PI  3.141592
+const float PI = 3.141592;
 
 uniform vec3 uAABBSize;
 
@@ -26,30 +26,40 @@ uniform sampler3D uNoiseTex1;
 uniform sampler3D uNoiseTex2;
 uniform vec3 uLightDirection;
 uniform vec4 uLightColor;
+uniform vec4 uLayerContribution;
+uniform float uPhaseG = 0.5f;
 
 const int MAX_RAYMARCH_STEP = 32;
-const int MAX_LIGHTMARCH_STEP = 16;
-const float PHASE_G = 0.3f;
+const int MAX_LIGHTMARCH_STEP = 8;
 
-float getDensity(vec3 p) {
-   vec4 noiseTex1 = texture(uNoiseTex1, p * 0.1 * uCloudScale + uCloudOffset).rgba;
-   float density = noiseTex1.r * noiseTex1.g;
-   density = density - noiseTex1.b + noiseTex1.a;
-   return max(density - uDensityThreshold, 0.0f) * uDensityMultiplier;
+
+float remap(in float val, in float inMin, in float inMax, in float outMin, in float outMax) {
+    return (val - inMin)/(inMax - inMin) * (outMax - outMin) + outMin;
 }
 
-// Hash by David_Hoskins
-#define UI0 1597334673U
-#define UI1 3812015801U
-#define UI2 uvec2(UI0, UI1)
-#define UI3 uvec3(UI0, UI1, 2798796415U)
-#define UIF (1.0 / float(0xffffffffU))
+// clamps the input value to (inMin, inMax) and performs a remap
+float clampRemap(in float val, in float inMin, in float inMax, in float outMin, in float outMax) {
+    float clVal = clamp(val, inMin, inMax);
+    return (clVal - inMin)/(inMax - inMin) * (outMax - outMin) + outMin;
+}
 
-vec2 hash22(vec2 p)
-{
-	uvec2 q = uvec2(ivec2(p)) * UI2;
-	q = (q.x ^ q.y) * UI2;
-	return -1. + 2. * vec2(q) * UIF;
+float saturate(in float val) {
+    return clamp(val, 0, 1);
+}
+
+float sampleDensity(vec3 p, float coverage) {
+   p = p * 0.2 * uCloudScale + uCloudOffset;
+   vec4 cloudBase = texture(uNoiseTex1, p);
+   float lowFreqNoise = cloudBase.r * uLayerContribution.x;
+   float highFreqNoise = dot(cloudBase.gba, uLayerContribution.yzw);
+   float baseDensity = clampRemap(lowFreqNoise, highFreqNoise - 1, 1.0, 0.0, 1.0);
+
+   vec3 cloudDetail = texture(uNoiseTex2, p).rgb;
+   float detailNoise = dot(cloudDetail, vec3(0.5, 0.7, 1.0));
+   baseDensity = clampRemap(baseDensity, detailNoise - 1.0f, 1.0f, 0.0f, 1.0f);
+
+   baseDensity = clamp(baseDensity, 0.0, 1.0);
+   return max(baseDensity - coverage, 0.0f) * uDensityMultiplier;
 }
 
 bool RayBoxIntersection( in vec3 ro, in vec3 rd, vec3 boxSize, out vec2 t) 
@@ -76,11 +86,11 @@ vec3 GetRayDir(vec2 ndcCoord) {
   return normalize(worldCoord.xyz);
 }
 
-float phase(const float g, const float cosTheta)
-{
-    float denom = 1 + g * g - 2 * g * cosTheta;
-    return 1 / (4 * M_PI) * (1 - g * g) / (denom * sqrt(denom));
+float henyeyGreenstein(float cosAngle, float eccentricity) {
+    float eccentricity2 = eccentricity*eccentricity;
+    return ((1.0 - eccentricity2) / pow(1.0 + eccentricity2 - 2.0*eccentricity*cosAngle, 3.0/2.0)) / (4*PI);
 }
+
 
 float lightMarch(vec3 r0, vec3 rd) {
   vec2 t = vec2(0.0f);
@@ -90,8 +100,8 @@ float lightMarch(vec3 r0, vec3 rd) {
 
   float opticalDepth = 0.0f;
   for(int i = 0; i < MAX_LIGHTMARCH_STEP; ++i) {
-     opticalDepth += max(getDensity(r0) * stepSize, 0.0f);
      r0 += rd * stepSize;
+     opticalDepth += max(sampleDensity(r0, uDensityThreshold) * stepSize, 0.0f);
   }
 
   return exp(-opticalDepth);
@@ -101,7 +111,8 @@ void main() {
    vec3 r0 = uCamPos;
    vec3 rd = GetRayDir(uv);
 
-   vec3 backgroundColor = vec3(0.5f, 0.7f, 1.0f); 
+   float h = uv.y * 0.5 + 0.5;
+   vec3 backgroundColor = mix(vec3(0.5f, 0.7f, 1.0f), vec3(1.0, 0.8, 0.3), 1.0 - h); 
    vec3 color = backgroundColor;
    vec2 t = vec2(0.0f);
 
@@ -114,23 +125,22 @@ void main() {
       float transmittance = 1.0f;
       float totalEnergy = 0.0f;
 
-      float cosTheta = dot(uLightDirection, rd);
+      float	cosTheta = dot(uLightDirection,	normalize(-rd));
 	  for(int i	= 0; i < MAX_RAYMARCH_STEP;	++i) {
-          float density = getDensity(p);
-
-          float lightTransmittance = lightMarch(p, uLightDirection);
-          totalEnergy += lightTransmittance * phase(PHASE_G, cosTheta) * transmittance * density * stepSize;
-
-          transmittance *= exp(-density * stepSize);
-
-          if(transmittance < 0.001f) break;
-
 		  p	+= rd *	stepSize;
+
+          float density = sampleDensity(p, uDensityThreshold);
+          if(density > 0.0f) {
+    		  float	lightTransmittance = lightMarch(p, uLightDirection);
+			  totalEnergy += lightTransmittance	* henyeyGreenstein(cosTheta, uPhaseG) *	transmittance *	density	* stepSize;
+			  transmittance	*= exp(-density	* stepSize);
+		  }
+		  if(transmittance < 0.001f) break;
 	  }
       vec3 cloudColor = totalEnergy * uLightColor.xyz * uLightColor.w;
       color = transmittance * backgroundColor + cloudColor;
    }
-   color /=(1.0 + color);
+   color /=(1.0	+ color);
    color = pow(color, vec3(0.4545));
 
    fragColor = vec4(color, 1.0f);
