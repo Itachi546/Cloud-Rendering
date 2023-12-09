@@ -145,14 +145,14 @@ struct TextureCreateInfo {
 
 inline void InitializeDepthTexture(TextureCreateInfo* createInfo,
 	uint32_t width,
-	uint32_t height,
-	uint32_t format) {
+	uint32_t height) {
 	createInfo->width = width;
 	createInfo->height = height;
-	createInfo->format = format;
-	createInfo->internalFormat = GL_DEPTH_COMPONENT;
+	createInfo->format = GL_DEPTH_STENCIL;
+	createInfo->internalFormat = GL_DEPTH24_STENCIL8;
 	createInfo->target = GL_TEXTURE_2D;
 	createInfo->minFilterType = createInfo->magFilterType = GL_NEAREST;
+	createInfo->dataType = GL_UNSIGNED_INT_24_8;
 }
 
 struct GLTexture {

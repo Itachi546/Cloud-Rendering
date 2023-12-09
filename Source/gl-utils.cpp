@@ -120,7 +120,7 @@ void GLProgram::init(GLShader a, GLShader b, GLShader c)
 
 void GLProgram::setTexture(const std::string& name, int binding, unsigned int textureId, bool layered)
 {
-	setInt("name", binding);
+	setInt(name, binding);
 	glActiveTexture(GL_TEXTURE0 + binding);
 	if(layered)
 		glBindTexture(GL_TEXTURE_3D, textureId);

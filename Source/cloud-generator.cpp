@@ -4,6 +4,7 @@
 #include "imgui-service.h"
 #include "debug-draw.h"
 #include "logger.h"
+#include "utils.h"
 
 void CloudGenerator::Initialize()
 {
@@ -21,6 +22,18 @@ void CloudGenerator::Initialize()
 	createInfo.width = createInfo.height = createInfo.depth = 32;
 	mTexture2 = std::make_unique<GLTexture>();
 	mTexture2->init(&createInfo);
+
+	mBlueNoiseTex = std::make_unique<GLTexture>();
+	int width, height, nChannel;
+	unsigned char* noiseData = Utils::LoadImage("Textures/BlueNoise64.png", &width, &height, &nChannel);
+	createInfo.width = width;
+	createInfo.height = height;
+	createInfo.internalFormat = GL_RGBA8;
+	createInfo.dataType = GL_UNSIGNED_BYTE;
+	createInfo.target = GL_TEXTURE_2D;
+	mBlueNoiseTex->init(&createInfo, noiseData);
+
+	Utils::FreeImage(noiseData);
 
 	mTex1Params[0] = { 1.0f, 1.0f, 1.0f, 0.5f, 7, glm::vec3(0.4f, 0.6, 0.5), NoiseType::Perlin };
 	mTex1Params[1] = { 0.5f, 4.0f, 2.0f, 0.5f, 2, glm::vec3(1.4f, 1.593f, 1.539f) };
@@ -57,6 +70,8 @@ void CloudGenerator::Initialize()
 	mQuadBuffer = std::make_unique<GLBuffer>();
 	uint32_t dataSize = static_cast<uint32_t>(positions.size() * sizeof(glm::vec2));
 	mQuadBuffer->init(positions.data(), dataSize, 0);
+
+	glGenQueries(1, &mGpuQuery);
 }
 
 static const char* CHANNELS_DROPDOWN[] = {
@@ -85,6 +100,7 @@ static bool CreateNoiseWidget(const char* name, NoiseParams* params) {
 
 void CloudGenerator::AddUI()
 {
+	ImGui::Text("Render Time: %.2fms", mRenderTime);
 	ImGui::Text("Bounding Box");
 	ImGui::Checkbox("Show AABB", &mShowAABB);
 	ImGui::DragFloat3("AABB", &aabbSize[0], 0.1f);
@@ -100,6 +116,8 @@ void CloudGenerator::AddUI()
 	ImGui::ColorEdit3("Light Color", &mLightColor[0]);
 	ImGui::DragFloat("Light Intensity", &mLightColor.w, 0.1f);
 	ImGui::SliderFloat("PhaseG", &mPhaseG, 0.0f, 1.0f);
+	ImGui::SliderFloat("Light Absorption", &mLightAbsorption, 0.0f, 4.0f);
+	ImGui::Checkbox("Sugar Powder", &mSugarPowder);
 
 	static float theta = glm::radians(90.0f), phi = 0.0f;
 	ImGui::Text("Light Direction");
@@ -134,6 +152,10 @@ void CloudGenerator::AddUI()
 		ImGui::PopID();
 		ImGui::Separator();
 	}
+
+	ImGui::Text("Blue Noise Texture");
+	ImGui::Image((ImTextureID)(uint64_t)mBlueNoiseTex->handle, ImVec2 { 64, 64 });
+
 }
 
 void CloudGenerator::Render(glm::mat4 P, glm::mat4 V, glm::vec3 camPos, float dt)
@@ -144,8 +166,9 @@ void CloudGenerator::Render(glm::mat4 P, glm::mat4 V, glm::vec3 camPos, float dt
 	glm::mat4 invP = glm::inverse(P);
 	glm::mat4 invV = glm::inverse(V);
 
-	mCloudOffset.x += dt * 0.1f;
-
+	//mCloudOffset.x += dt * 0.1f;
+	glBeginQuery(GL_TIME_ELAPSED, mGpuQuery);
+	/**/
 	glUseProgram(0);
 	mRayMarchProgram->use();
 	glm::vec3 boxSize = aabbSize * 0.5f;
@@ -153,8 +176,11 @@ void CloudGenerator::Render(glm::mat4 P, glm::mat4 V, glm::vec3 camPos, float dt
 	mRayMarchProgram->setVec3("uCamPos", &camPos[0]);
 	mRayMarchProgram->setMat4("uInvP", &invP[0][0]);
 	mRayMarchProgram->setMat4("uInvV", &invV[0][0]);
+
 	mRayMarchProgram->setTexture("uNoiseTex1", 0, mTexture1->handle, true);
 	mRayMarchProgram->setTexture("uNoiseTex2", 1, mTexture2->handle, true);
+	mRayMarchProgram->setTexture("uBlueNoiseTex", 2, mBlueNoiseTex->handle);
+
 	mRayMarchProgram->setVec3("uCloudOffset", &mCloudOffset[0]);
 	mRayMarchProgram->setFloat("uCloudScale", mCloudScale);
 	mRayMarchProgram->setFloat("uDensityMultiplier", mDensityMultiplier);
@@ -163,12 +189,24 @@ void CloudGenerator::Render(glm::mat4 P, glm::mat4 V, glm::vec3 camPos, float dt
 	mRayMarchProgram->setVec4("uLightColor", &mLightColor[0]);
 	mRayMarchProgram->setVec4("uLayerContribution", &mLayerContribution[0]);
 	mRayMarchProgram->setFloat("uPhaseG", mPhaseG);
+	mRayMarchProgram->setFloat("uLightAbsorption", mLightAbsorption);
+	mRayMarchProgram->setInt("uSugarPowder", int(mSugarPowder));
 
 	glBindBuffer(GL_ARRAY_BUFFER, mQuadBuffer->handle);
 	glEnableVertexAttribArray(0);
 	glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(glm::vec2), 0);
 
 	glDrawArrays(GL_TRIANGLES, 0, 6);
+
+	glEndQuery(GL_TIME_ELAPSED);
+	// Wait for query to be available (stalling)
+	int done = 0;
+	while (!done)
+		glGetQueryObjectiv(mGpuQuery, GL_QUERY_RESULT_AVAILABLE, &done);
+
+	uint64_t renderTimeElapsed = 0;
+	glGetQueryObjectui64v(mGpuQuery, GL_QUERY_RESULT, &renderTimeElapsed);
+	mRenderTime = renderTimeElapsed * 0.000001f;
 }
 
 void CloudGenerator::Shutdown()

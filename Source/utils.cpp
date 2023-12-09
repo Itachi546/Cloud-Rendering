@@ -1,6 +1,11 @@
 #include "utils.h"
 
+#define STB_IMAGE_IMPLEMENTATION
+#include <stb_image.h>
+
 #include <algorithm>
+
+#include "logger.h"
 
 namespace Utils {
     bool RayBoxIntersection(const Ray& ray, const glm::vec3& min, const glm::vec3& max, glm::vec2& t)
@@ -38,6 +43,31 @@ namespace Utils {
 
         glm::vec4 worldCoord = glm::inverse(V) * viewCoord;
         return glm::normalize(glm::vec3(worldCoord));
+    }
+
+    unsigned char* LoadImage(const char* filename, int* width, int* height, int* nChannel)
+    {
+        unsigned char* image = stbi_load(filename, width, height, nChannel, 0);
+        if (image == nullptr)
+            logger::Error("Failed to load image: " + std::string(filename));
+
+        logger::Debug("Image Loaded from file: " + std::string(filename));
+        return image;
+    }
+
+    float* LoadImageFloat(const char* filename, int* width, int* height, int* nChannel)
+    {
+        float* image = stbi_loadf(filename, width, height, nChannel, 0);
+        if (image == nullptr)
+            logger::Error("Failed to load image: " + std::string(filename));
+
+        logger::Debug("Image Loaded from file: " + std::string(filename));
+        return image;
+    }
+
+    void FreeImage(void* buffer)
+    {
+        stbi_image_free(buffer);
     }
 
 }

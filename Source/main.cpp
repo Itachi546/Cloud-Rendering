@@ -4,10 +4,10 @@
 #include "cloud-generator.h"
 #include "debug-draw.h"
 #include "utils.h"
+#include "terrain.h"
+#include "camera.h"
 
 #include <iostream>
-
-#define ENABLE_CAMERA 1
 
 struct WindowProps {
 	GLFWwindow* window;
@@ -20,11 +20,10 @@ struct WindowProps {
 	float mDx = 0.0f;
 	float mDy = 0.0f;
 
-	glm::mat4 P;
-	glm::mat4 V;
-
 	bool mouseDown = false;
 };
+
+Camera gCamera;
 
 WindowProps gWindowProps = {
 	nullptr, 1360, 769
@@ -36,6 +35,8 @@ uint32_t gFBOHeight = 1080;
 static void on_window_resize(GLFWwindow* window, int width, int height) {
 	gWindowProps.width = std::max(width, 2);
 	gWindowProps.height = std::max(height, 2);
+
+	gCamera.SetAspect(float(width) / float(height));
 }
 
 static void on_key_press(GLFWwindow* window, int key, int scancode, int action, int mods) {
@@ -79,15 +80,29 @@ MessageCallback(GLenum source,
 		type, severity, message);
 }
 
-static glm::vec3 UpdateViewMatrix(float camDist, float yaw, float pitch) {
-	glm::vec3 target = glm::vec3(0.0f);
-	glm::vec3 camPos = glm::vec3{ cos(pitch) * cos(yaw), sin(pitch), cos(pitch) * sin(yaw)} *camDist;
+void MoveCamera(float dt) {
+	if (gWindowProps.mouseDown)
+		gCamera.Rotate(gWindowProps.mDy, -gWindowProps.mDx, dt);
 
-	glm::vec3 forward = glm::normalize(target - camPos);
-	glm::vec3 right = glm::cross(glm::vec3(0.0f, 1.0f, 0.0f), forward);
-	glm::vec3 up = glm::cross(forward, right);
-	gWindowProps.V = glm::lookAt(camPos, target, up);
-	return camPos;
+	float walkSpeed = dt * 10.0f;
+	if (glfwGetKey(gWindowProps.window, GLFW_KEY_LEFT_SHIFT) != GLFW_RELEASE)
+		walkSpeed *= 4.0f;
+
+	if (glfwGetKey(gWindowProps.window, GLFW_KEY_W) != GLFW_RELEASE)
+		gCamera.Walk(-walkSpeed);
+	else if (glfwGetKey(gWindowProps.window, GLFW_KEY_S) != GLFW_RELEASE)
+		gCamera.Walk(walkSpeed);
+
+	if (glfwGetKey(gWindowProps.window, GLFW_KEY_A) != GLFW_RELEASE)
+		gCamera.Strafe(-walkSpeed);
+	else if (glfwGetKey(gWindowProps.window, GLFW_KEY_D) != GLFW_RELEASE)
+		gCamera.Strafe(walkSpeed);
+
+	if (glfwGetKey(gWindowProps.window, GLFW_KEY_1) != GLFW_RELEASE)
+		gCamera.Lift(walkSpeed);
+	else if (glfwGetKey(gWindowProps.window, GLFW_KEY_2) != GLFW_RELEASE)
+		gCamera.Lift(-walkSpeed);
+
 }
 
 int main() {
@@ -133,23 +148,20 @@ int main() {
     ImGuiService::Initialize(window);
 
 	TextureCreateInfo colorAttachment = {gFBOWidth, gFBOHeight};
+
 	TextureCreateInfo depthAttachment;
-	InitializeDepthTexture(&depthAttachment, gFBOWidth, gFBOHeight, GL_DEPTH_COMPONENT32F);
+	InitializeDepthTexture(&depthAttachment, gFBOWidth, gFBOHeight);
 
 	GLFramebuffer mainFBO;
-	mainFBO.init({ Attachment{ 0, &colorAttachment } }, nullptr);
+	mainFBO.init({ Attachment{ 0, &colorAttachment }}, &depthAttachment);
 
 	DebugDraw::Initialize();
 	NoiseGenerator::GetInstance()->Initialize();
 	std::unique_ptr<CloudGenerator> cloudGenerator = std::make_unique<CloudGenerator>();
 	cloudGenerator->Initialize();
 
-	float camDist = -500.0f;
-	float cameraPitch = glm::radians(45.0f);
-	float cameraYaw = 0.0f;
-	gWindowProps.P = glm::perspective(glm::radians(60.0f), float(gFBOWidth) / float(gFBOHeight), 1.0f, 1000.0f);
-	glm::vec3 camPos = UpdateViewMatrix(camDist, cameraYaw, cameraPitch);
-	glm::mat4 VP = gWindowProps.P * gWindowProps.V;
+	Terrain terrain;
+	terrain.Initialize(1024, 1024);
 
 	float startTime = (float)glfwGetTime();
 	float dt = 1.0f / 60.0f;
@@ -157,25 +169,22 @@ int main() {
 	while (!glfwWindowShouldClose(window)) {
 		glfwPollEvents();
 
+		MoveCamera(dt);
+
+		gCamera.Update(dt);
+
 		ImGuiService::NewFrame();
 
 		ImGuiService::RenderDockSpace();
-#if ENABLE_CAMERA
-		if (gWindowProps.mouseDown) {
-			cameraYaw += gWindowProps.mDx * dt * 0.1f;
-			cameraPitch += gWindowProps.mDy * dt * 0.1f;
-			cameraPitch = glm::clamp(cameraPitch, -glm::pi<float>() * 0.25f, glm::pi<float>() * 0.25f);
-			camPos = UpdateViewMatrix(camDist, cameraYaw, cameraPitch);
-			VP = gWindowProps.P * gWindowProps.V;
-		}
-#endif
+
 
 		mainFBO.bind();
 		mainFBO.setClearColor(0.5f, 0.7f, 1.0f, 1.0f);
 		mainFBO.setViewport(gFBOWidth, gFBOHeight);
 		mainFBO.clear(true);
-		cloudGenerator->Render(gWindowProps.P, gWindowProps.V, camPos, dt);
-		DebugDraw::Render(VP, glm::vec2(gFBOWidth, gFBOHeight));
+		//cloudGenerator->Render(gWindowProps.P, gWindowProps.V, camPos, dt);
+		//DebugDraw::Render(VP, glm::vec2(gFBOWidth, gFBOHeight));
+		terrain.Render(&gCamera);
 		mainFBO.unbind();
 
 		ImGui::Begin("MainWindow");
@@ -198,9 +207,6 @@ int main() {
 		ImGui::End();
 
 		ImGui::Begin("Options");
-		if (ImGui::DragFloat("CamDist", &camDist, 0.1f)) {
-			UpdateViewMatrix(camDist, cameraYaw, cameraPitch);
-		}
 		cloudGenerator->AddUI();
 		ImGui::End();
 
@@ -215,6 +221,7 @@ int main() {
 		gWindowProps.mDx = 0.0f;
 		gWindowProps.mDy = 0.0f;
 	}
+	terrain.Shutdown();
 	DebugDraw::Shutdown();
 	NoiseGenerator::GetInstance()->Shutdown();
     ImGuiService::Shutdown();
