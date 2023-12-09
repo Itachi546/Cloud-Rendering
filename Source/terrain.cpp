@@ -40,15 +40,7 @@ void Terrain::Initialize(uint32_t width, uint32_t height)
 	mNumIndices = static_cast<uint32_t>(indices.size());
 
 	glGenVertexArrays(1, &mVAO);
-	glBindVertexArray(mVAO);
-	glBindBuffer(GL_ARRAY_BUFFER, mVBO->handle);
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mIBO->handle);
-
-	glEnableVertexAttribArray(0);
-	glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(glm::vec2), 0);
-
-	glBindVertexArray(0);
-
+	
 	GLShader vs("Shaders/terrain.vert");
 	GLShader fs("Shaders/terrain.frag");
 	mProgram = std::make_unique<GLProgram>();
@@ -84,7 +76,14 @@ void Terrain::Render(Camera* camera)
 
 	glm::vec2 invSize{ 1.0f / float(mWidth), 1.0f / float(mHeight) };
 	mProgram->setVec2("uInvTerrainSize", &invSize[0]);
+
 	glBindVertexArray(mVAO);
+	glBindBuffer(GL_ARRAY_BUFFER, mVBO->handle);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mIBO->handle);
+
+	glEnableVertexAttribArray(0);
+	glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(glm::vec2), 0);
+
 	glDrawElements(GL_TRIANGLES, mNumIndices, GL_UNSIGNED_INT, 0);
 }
 

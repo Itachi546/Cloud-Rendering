@@ -82,6 +82,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="Source\camera.cpp" />
     <ClCompile Include="Source\cloud-generator.cpp" />
     <ClCompile Include="Source\debug-draw.cpp" />
     <ClCompile Include="Source\debug-draw.h" />
@@ -89,15 +90,18 @@
     <ClCompile Include="Source\imgui-service.cpp" />
     <ClCompile Include="Source\main.cpp" />
     <ClCompile Include="Source\noise-generator\noise-generator.cpp" />
+    <ClCompile Include="Source\terrain.cpp" />
     <ClCompile Include="Source\utils.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Source\camera.h" />
     <ClInclude Include="Source\cloud-generator.h" />
     <ClInclude Include="Source\gl-utils.h" />
     <ClInclude Include="Source\glm-includes.h" />
     <ClInclude Include="Source\imgui-service.h" />
     <ClInclude Include="Source\logger.h" />
     <ClInclude Include="Source\noise-generator\noise-generator.h" />
+    <ClInclude Include="Source\terrain.h" />
     <ClInclude Include="Source\utils.h" />
   </ItemGroup>
   <ItemGroup>
@@ -106,6 +110,8 @@
     <None Include="Shaders\perlin.comp" />
     <None Include="Shaders\raymarch.frag" />
     <None Include="Shaders\raymarch.vert" />
+    <None Include="Shaders\terrain.frag" />
+    <None Include="Shaders\terrain.vert" />
     <None Include="Shaders\worley.comp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

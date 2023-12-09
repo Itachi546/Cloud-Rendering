@@ -7,7 +7,7 @@ Camera::Camera()
 
 	mFov = glm::radians(60.0f);
 	mAspect = 4.0f / 3.0f;
-	mNearPlane = 0.1f;
+	mNearPlane = 0.5f;
 	mFarPlane = 1000.0f;
 
 	mSpeed = 2.0f;

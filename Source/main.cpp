@@ -148,6 +148,8 @@ int main() {
     ImGuiService::Initialize(window);
 
 	TextureCreateInfo colorAttachment = {gFBOWidth, gFBOHeight};
+	GLFramebuffer cloudFBO;
+	cloudFBO.init({ Attachment{0, &colorAttachment} }, nullptr);
 
 	TextureCreateInfo depthAttachment;
 	InitializeDepthTexture(&depthAttachment, gFBOWidth, gFBOHeight);
@@ -177,23 +179,28 @@ int main() {
 
 		ImGuiService::RenderDockSpace();
 
-
 		mainFBO.bind();
 		mainFBO.setClearColor(0.5f, 0.7f, 1.0f, 1.0f);
 		mainFBO.setViewport(gFBOWidth, gFBOHeight);
 		mainFBO.clear(true);
-		//cloudGenerator->Render(gWindowProps.P, gWindowProps.V, camPos, dt);
-		//DebugDraw::Render(VP, glm::vec2(gFBOWidth, gFBOHeight));
 		terrain.Render(&gCamera);
+		glm::mat4 VP = gCamera.GetProjectionMatrix() * gCamera.GetViewMatrix();
+		DebugDraw::Render(VP, glm::vec2(gFBOWidth, gFBOHeight));
 		mainFBO.unbind();
 
-		ImGui::Begin("MainWindow");
+		cloudFBO.bind();
+		cloudFBO.setClearColor(0.5f, 0.7f, 1.0f, 1.0f);
+		cloudFBO.setViewport(gFBOWidth, gFBOHeight);
+		cloudFBO.clear(true);
+		cloudGenerator->Render(&gCamera, dt, mainFBO.depthAttachment, mainFBO.attachments[0]);
+		cloudFBO.unbind();
 
+		ImGui::Begin("MainWindow");
 		ImVec2 dims = ImGui::GetContentRegionAvail();
 		ImVec2 pos = ImGui::GetCursorScreenPos();
 
 		ImGui::GetWindowDrawList()->AddImage(
-			(ImTextureID)(uint64_t)mainFBO.attachments[0],
+			(ImTextureID)(uint64_t)cloudFBO.attachments[0],
 			ImVec2(pos.x, pos.y),
 			ImVec2(pos.x + dims.x, pos.y + dims.y),
 			ImVec2(0, 1),

@@ -5,6 +5,7 @@
 #include "debug-draw.h"
 #include "logger.h"
 #include "utils.h"
+#include "camera.h"
 
 void CloudGenerator::Initialize()
 {
@@ -158,13 +159,14 @@ void CloudGenerator::AddUI()
 
 }
 
-void CloudGenerator::Render(glm::mat4 P, glm::mat4 V, glm::vec3 camPos, float dt)
+void CloudGenerator::Render(Camera* camera, float dt, uint32_t depthTexture, uint32_t colorAttachment)
 {
 	if(mShowAABB)
 		DebugDraw::AddRect(-aabbSize, aabbSize);
 
-	glm::mat4 invP = glm::inverse(P);
-	glm::mat4 invV = glm::inverse(V);
+	glm::mat4 invP = camera->GetInvProjectionMatrix();
+	glm::mat4 invV = camera->GetInvViewMatrix();
+	glm::vec3 camPos = camera->GetPosition();
 
 	//mCloudOffset.x += dt * 0.1f;
 	glBeginQuery(GL_TIME_ELAPSED, mGpuQuery);
@@ -180,6 +182,8 @@ void CloudGenerator::Render(glm::mat4 P, glm::mat4 V, glm::vec3 camPos, float dt
 	mRayMarchProgram->setTexture("uNoiseTex1", 0, mTexture1->handle, true);
 	mRayMarchProgram->setTexture("uNoiseTex2", 1, mTexture2->handle, true);
 	mRayMarchProgram->setTexture("uBlueNoiseTex", 2, mBlueNoiseTex->handle);
+	mRayMarchProgram->setTexture("uDepthTexture", 3, depthTexture);
+	mRayMarchProgram->setTexture("uSceneTexture", 4, colorAttachment);
 
 	mRayMarchProgram->setVec3("uCloudOffset", &mCloudOffset[0]);
 	mRayMarchProgram->setFloat("uCloudScale", mCloudScale);

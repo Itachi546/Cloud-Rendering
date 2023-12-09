@@ -7,6 +7,7 @@
 struct GLTexture;
 class GLProgram;
 struct GLBuffer;
+class Camera;
 
 class CloudGenerator
 {
@@ -17,11 +18,11 @@ public:
 
 	void AddUI();
 
-	void Render(glm::mat4 P, glm::mat4 V, glm::vec3 camPos, float dt);
+	void Render(Camera* camera, float dt, uint32_t depthTexture, uint32_t colorAttachment);
 
 	void Shutdown();
 
-	glm::vec3 aabbSize{ 1000.0f, 50.0f, 1000.0f };
+	glm::vec3 aabbSize{ 10.0f, 5.0f, 10.0f };
 private:
 	std::unique_ptr<GLTexture> mTexture1;
 	std::unique_ptr<GLTexture> mTexture2;

@@ -39,6 +39,12 @@
     <ClCompile Include="Source\utils.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="Source\terrain.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\camera.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Source\imgui-service.h">
@@ -62,6 +68,12 @@
     <ClInclude Include="Source\utils.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="Source\terrain.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\camera.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="Shaders\worley.comp" />
@@ -70,5 +82,7 @@
     <None Include="Shaders\raymarch.frag" />
     <None Include="Shaders\raymarch.vert" />
     <None Include="Shaders\perlin.comp" />
+    <None Include="Shaders\terrain.frag" />
+    <None Include="Shaders\terrain.vert" />
   </ItemGroup>
 </Project>
