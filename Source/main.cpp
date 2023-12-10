@@ -168,6 +168,8 @@ int main() {
 	float startTime = (float)glfwGetTime();
 	float dt = 1.0f / 60.0f;
 
+	gCamera.SetPosition(glm::vec3(0.0f, 30.0f, -100.0f));
+
 	while (!glfwWindowShouldClose(window)) {
 		glfwPollEvents();
 

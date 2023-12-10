@@ -22,7 +22,6 @@ public:
 
 	void Shutdown();
 
-	glm::vec3 aabbSize{ 10.0f, 5.0f, 10.0f };
 private:
 	std::unique_ptr<GLTexture> mTexture1;
 	std::unique_ptr<GLTexture> mTexture2;
@@ -36,18 +35,20 @@ private:
 
 	std::unique_ptr<GLBuffer> mQuadBuffer;
 
-	float mCloudScale = 0.01f;
+	float mCloudScale = 0.002f;
 	glm::vec3 mCloudOffset{ 0.0f };
-	float mDensityMultiplier = 0.14f;
-	float mDensityThreshold = 0.6f;
+	float mDensityMultiplier = 0.157f;
+	float mDensityThreshold = 0.913f;
 	glm::vec3 mLightDirection = glm::vec3(0.0f, 1.0f, 0.0f);
 	glm::vec4 mLightColor = glm::vec4(1.0f, 1.0f, 1.0f, 30.0f);
 	glm::vec4 mLayerContribution = glm::vec4(1.0f, 0.625, 0.112, 0.938);
 	float mPhaseG = 0.5f;
-	float mLightAbsorption = 1.0f;
+	float mLightAbsorption = 0.2f;
 	bool mSugarPowder = true;
 
 	unsigned int mGpuQuery;
-	bool mShowAABB = true;
 	float mRenderTime = 0.0f;
+
+	glm::vec2 mRadius{ 1500.0f, 4000.0f };
+
 };

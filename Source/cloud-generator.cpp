@@ -102,12 +102,10 @@ static bool CreateNoiseWidget(const char* name, NoiseParams* params) {
 void CloudGenerator::AddUI()
 {
 	ImGui::Text("Render Time: %.2fms", mRenderTime);
-	ImGui::Text("Bounding Box");
-	ImGui::Checkbox("Show AABB", &mShowAABB);
-	ImGui::DragFloat3("AABB", &aabbSize[0], 0.1f);
+	ImGui::DragFloat2("Radius", &mRadius[0], 10.0f);
 	ImGui::Spacing();
 
-	ImGui::SliderFloat("CloudScale", &mCloudScale, 0.0f, 0.1f);
+	ImGui::SliderFloat("CloudScale", &mCloudScale, 0.0f, 0.01f);
 	ImGui::DragFloat3("CloudOffset", &mCloudOffset[0], 0.1f);
 
 	ImGui::SliderFloat("DensityMultiplier", &mDensityMultiplier, 0.0f, 1.0f);
@@ -161,9 +159,6 @@ void CloudGenerator::AddUI()
 
 void CloudGenerator::Render(Camera* camera, float dt, uint32_t depthTexture, uint32_t colorAttachment)
 {
-	if(mShowAABB)
-		DebugDraw::AddRect(-aabbSize, aabbSize);
-
 	glm::mat4 invP = camera->GetInvProjectionMatrix();
 	glm::mat4 invV = camera->GetInvViewMatrix();
 	glm::vec3 camPos = camera->GetPosition();
@@ -173,8 +168,7 @@ void CloudGenerator::Render(Camera* camera, float dt, uint32_t depthTexture, uin
 	/**/
 	glUseProgram(0);
 	mRayMarchProgram->use();
-	glm::vec3 boxSize = aabbSize * 0.5f;
-	mRayMarchProgram->setVec3("uAABBSize", &aabbSize[0]);
+	mRayMarchProgram->setVec3("mRadius", &mRadius[0]);
 	mRayMarchProgram->setVec3("uCamPos", &camPos[0]);
 	mRayMarchProgram->setMat4("uInvP", &invP[0][0]);
 	mRayMarchProgram->setMat4("uInvV", &invV[0][0]);

@@ -12,7 +12,8 @@ void swap(inout float a, inout float b) {
 
 const float PI = 3.141592;
 
-uniform vec3 uAABBSize;
+uniform vec3 uAABBMin;
+uniform vec3 uAABBMax;
 
 uniform mat4 uInvP;
 uniform mat4 uInvV;
@@ -55,7 +56,7 @@ float saturate(in float val) {
 
 float GetHeightFraction(vec3 p) 
 {
-  return (p.y + uAABBSize.y) / (2.0f * uAABBSize.y);
+  return (p.y + uAABBMin.y) / (uAABBMax.y - uAABBMin.y);
 }
 
 float SampleDepth(vec2 uv) {
@@ -82,19 +83,35 @@ float sampleDensity(vec3 p, float coverage) {
    return max(baseDensity - coverage, 0.0f) * uDensityMultiplier;
 }
 
-bool RayBoxIntersection( in vec3 ro, in vec3 rd, vec3 boxSize, out vec2 t) 
+vec2 RaySphereIntersection( in vec3 ro, in vec3 rd, in vec3 ce, float ra )
 {
-    vec3 m = 1.0/rd; // can precompute if traversing a set of aligned boxes
-    vec3 n = m*ro;   // can precompute if traversing a set of aligned boxes
-    vec3 k = abs(m)*boxSize;
-    vec3 t1 = -n - k;
-    vec3 t2 = -n + k;
-    float tN = max( max( t1.x, t1.y ), t1.z );
-    float tF = min( min( t2.x, t2.y ), t2.z );
-    if( tN>tF || tF<0.0) return false;
-    t = vec2( tN, tF );
-    return true;
+    vec3 oc = ro - ce;
+    float b = dot( oc, rd );
+    float c = dot( oc, oc ) - ra*ra;
+    float h = b*b - c;
+    if( h<0.0 ) return vec2(-1.0); // no intersection
+    h = sqrt( h );
+    return vec2( -b-h, -b+h );
 }
+/*
+bool RayBoxIntersection(vec3 aabbMin, vec3 aabbMax, vec3 r0, vec3 rd, out vec2 t) 
+{
+   vec3 invRayDir = 1.0f / rd;
+   vec3 t0 = (aabbMin - r0) * invRayDir;
+   vec3 t1 = (aabbMax - r0) * invRayDir;
+
+   vec3 tmin = min(t0, t1);
+   vec3 tmax = max(t0, t1);
+
+   float dstA = max(max(tmin.x, tmin.y), tmin.z);
+   float dstB = min(min(tmax.x, tmax.y), tmax.z);
+
+   t = vec2(dstA, dstB);
+
+   if(dstB < dstA || dstB < 0.0f) return false;
+   return true;
+}
+*/
 
 vec3 GetRayDir(vec2 ndcCoord) {
   vec4 ndc = vec4(ndcCoord, -1.0f, 1.0f);
@@ -117,9 +134,7 @@ float sugarPowder(float opticalDepth) {
 }
 
 float lightMarch(vec3 r0, vec3 rd) {
-  vec2 t = vec2(0.0f);
-  if(!RayBoxIntersection(r0, rd, uAABBSize, t)) return 0.0f; 
-
+  vec2 t = RaySphereIntersection(r0, rd, vec3(0.0f), 4000.0f);
   float stepSize = ceil(t.y) / float(MAX_LIGHTMARCH_STEP);
 
   float opticalDepth = 0.0f;
@@ -134,49 +149,49 @@ float lightMarch(vec3 r0, vec3 rd) {
 void main() {
 
    vec3 r0 = uCamPos;
-   float linearDepth = LinearizeDepth(SampleDepth(uv * 0.5f + 0.5f), 0.5f, 1000.0f);
+   float linearDepth = LinearizeDepth(SampleDepth(uv * 0.5f + 0.5f), 0.5f, 4000.0f);
 
    vec3 rd = GetRayDir(uv);
 
    vec3 color = texture(uSceneTexture, uv * 0.5f	+ 0.5f).rgb;
    vec2 t = vec2(0.0f);
 
-   bool intersect = RayBoxIntersection(r0, rd, uAABBSize, t);
-   t.x = max(t.x, 0.0f);
-   if(intersect && t.x < linearDepth) {
+   vec2 t0 = RaySphereIntersection(r0, rd, vec3(0.0f), 1500.0f);
+   vec2 t1 = RaySphereIntersection(r0, rd, vec3(0.0f), 4000.0f);
 
-      float dstInsideBox = ceil(t.y - t.x);
-      float stepSize = dstInsideBox / float(MAX_RAYMARCH_STEP);
+   float dstToBox = t0.y;
+   if(dstToBox < linearDepth) {
+   float dstInsideBox =	ceil(t1.y - t0.y);
+   float stepSize =	dstInsideBox / float(MAX_RAYMARCH_STEP);
 
-      float noiseOffset = texture(uBlueNoiseTex, uv).r;
-      vec3 p = r0 + (t.x + noiseOffset) * rd;
+   float noiseOffset = texture(uBlueNoiseTex, uv).r;
+   vec3	p =	r0 + (t.x +	noiseOffset) * rd;
 
-      float transmittance = 1.0f;
-      float totalEnergy = 0.0f;
+   float transmittance = 1.0f;
+   float totalEnergy = 0.0f;
 
-      float	cosTheta = dot(uLightDirection,	normalize(-rd));
+   float cosTheta = dot(uLightDirection, normalize(-rd));
+   float tau = stepSize	* uLightAbsorption;
 
-      float tau = stepSize * uLightAbsorption;
+   for(int i = 0; i < MAX_RAYMARCH_STEP; ++i) {
+      float density = sampleDensity(p,	uDensityThreshold);
+	  if(density >	0.0f) {
+    	  float	lightTransmittance = lightMarch(p, uLightDirection);
 
-	  for(int i	= 0; i < MAX_RAYMARCH_STEP;	++i) {
-          float density = sampleDensity(p, uDensityThreshold);
-          if(density > 0.0f) {
-    		  float	lightTransmittance = lightMarch(p, uLightDirection);
+		  float	inscattProb	= 1.0f;
+		  if(uSugarPowder == 1)
+    		  inscattProb =	sugarPowder(density	* stepSize);
 
-              float inscattProb = 1.0f;
-              if(uSugarPowder == 1)
-			     inscattProb = sugarPowder(density * stepSize);
-
-			  totalEnergy += lightTransmittance	* henyeyGreenstein(cosTheta, uPhaseG) *	inscattProb * transmittance;
-			  transmittance	*= exp(-density	* tau);
-		  }
-		  if(transmittance < 0.001f) break;
-		  p	+= rd *	stepSize;
+		  totalEnergy += lightTransmittance	* henyeyGreenstein(cosTheta, uPhaseG) *	inscattProb	* transmittance;
+		  transmittance	*= exp(-density	* tau);
 	  }
-      vec3 cloudColor = totalEnergy * uLightColor.xyz * uLightColor.w;
-      color = transmittance * color + cloudColor;
-   }
-   color /=(1.0 + color);
-   color = pow(color, vec3(0.4545));
-   fragColor = vec4(color, 1.0f);
+   	  if(transmittance < 0.001f) break;
+        p += rd * stepSize;
+  }
+  vec3 cloudColor	= totalEnergy *	uLightColor.xyz	* uLightColor.w;
+  color	= transmittance * color + cloudColor;
+	}
+  color /=(1.0 + color);
+  color	= pow(color, vec3(0.4545));
+  fragColor	= vec4(color, 1.0f);
 }

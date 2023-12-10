@@ -2,7 +2,7 @@
 
 Camera::Camera()
 {
-	mTargetPosition = mPosition = glm::vec3(0.0f, 30.0f, -3.0f);
+	mTargetPosition = mPosition = glm::vec3(0.0f, 1.0f, -3.0f);
 	mTargetRotation = mRotation = glm::vec3(0.0f, 0.0f, 0.0f);
 
 	mFov = glm::radians(60.0f);
