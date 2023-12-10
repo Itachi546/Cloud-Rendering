@@ -105,7 +105,7 @@ void CloudGenerator::AddUI()
 	ImGui::DragFloat2("Radius", &mRadius[0], 10.0f);
 	ImGui::Spacing();
 
-	ImGui::SliderFloat("CloudScale", &mCloudScale, 0.0f, 0.01f);
+	ImGui::SliderFloat("CloudScale", &mCloudScale, 0.0f, 1.0f);
 	ImGui::DragFloat3("CloudOffset", &mCloudOffset[0], 0.1f);
 
 	ImGui::SliderFloat("DensityMultiplier", &mDensityMultiplier, 0.0f, 1.0f);
@@ -115,7 +115,8 @@ void CloudGenerator::AddUI()
 	ImGui::ColorEdit3("Light Color", &mLightColor[0]);
 	ImGui::DragFloat("Light Intensity", &mLightColor.w, 0.1f);
 	ImGui::SliderFloat("PhaseG", &mPhaseG, 0.0f, 1.0f);
-	ImGui::SliderFloat("Light Absorption", &mLightAbsorption, 0.0f, 4.0f);
+	ImGui::SliderFloat("Light Absorption(Toward Camera)", &mLightAbsorption.x, 0.0f, 1.0f);
+	ImGui::SliderFloat("Light Absorption(Toward Sun)", &mLightAbsorption.y, 0.0f, 1.0f);
 	ImGui::Checkbox("Sugar Powder", &mSugarPowder);
 
 	static float theta = glm::radians(90.0f), phi = 0.0f;
@@ -168,7 +169,7 @@ void CloudGenerator::Render(Camera* camera, float dt, uint32_t depthTexture, uin
 	/**/
 	glUseProgram(0);
 	mRayMarchProgram->use();
-	mRayMarchProgram->setVec3("mRadius", &mRadius[0]);
+	mRayMarchProgram->setVec2("uRadius", &mRadius[0]);
 	mRayMarchProgram->setVec3("uCamPos", &camPos[0]);
 	mRayMarchProgram->setMat4("uInvP", &invP[0][0]);
 	mRayMarchProgram->setMat4("uInvV", &invV[0][0]);
@@ -187,7 +188,7 @@ void CloudGenerator::Render(Camera* camera, float dt, uint32_t depthTexture, uin
 	mRayMarchProgram->setVec4("uLightColor", &mLightColor[0]);
 	mRayMarchProgram->setVec4("uLayerContribution", &mLayerContribution[0]);
 	mRayMarchProgram->setFloat("uPhaseG", mPhaseG);
-	mRayMarchProgram->setFloat("uLightAbsorption", mLightAbsorption);
+	mRayMarchProgram->setVec2("uLightAbsorption", &mLightAbsorption[0]);
 	mRayMarchProgram->setInt("uSugarPowder", int(mSugarPowder));
 
 	glBindBuffer(GL_ARRAY_BUFFER, mQuadBuffer->handle);

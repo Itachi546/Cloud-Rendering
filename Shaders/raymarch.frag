@@ -12,8 +12,7 @@ void swap(inout float a, inout float b) {
 
 const float PI = 3.141592;
 
-uniform vec3 uAABBMin;
-uniform vec3 uAABBMax;
+uniform vec2 uRadius;
 
 uniform mat4 uInvP;
 uniform mat4 uInvV;
@@ -22,7 +21,7 @@ uniform float uCloudScale;
 uniform vec3 uCloudOffset;
 uniform float uDensityMultiplier;
 uniform float uDensityThreshold;
-uniform float uLightAbsorption;
+uniform vec2 uLightAbsorption;
 
 uniform sampler3D uNoiseTex1;
 uniform sampler3D uNoiseTex2;
@@ -40,23 +39,21 @@ const int MAX_RAYMARCH_STEP = 32;
 const int MAX_LIGHTMARCH_STEP = 6;
 
 
-float remap(in float val, in float inMin, in float inMax, in float outMin, in float outMax) {
+float Remap(in float val, in float inMin, in float inMax, in float outMin, in float outMax) {
     return (val - inMin)/(inMax - inMin) * (outMax - outMin) + outMin;
 }
 
+/*
 // clamps the input value to (inMin, inMax) and performs a remap
 float clampRemap(in float val, in float inMin, in float inMax, in float outMin, in float outMax) {
     float clVal = clamp(val, inMin, inMax);
     return (clVal - inMin)/(inMax - inMin) * (outMax - outMin) + outMin;
 }
-
-float saturate(in float val) {
-    return clamp(val, 0, 1);
-}
+*/
 
 float GetHeightFraction(vec3 p) 
 {
-  return (p.y + uAABBMin.y) / (uAABBMax.y - uAABBMin.y);
+  return (p.y - uRadius.x) / (uRadius.y - uRadius.x);
 }
 
 float SampleDepth(vec2 uv) {
@@ -67,20 +64,20 @@ float LinearizeDepth(float d, float zNear, float zFar) {
    return zNear * zFar / (zFar + d * (zNear - zFar));
 }
 
-float sampleDensity(vec3 p, float coverage) {
-   p = p * 0.2 * uCloudScale + uCloudOffset;
-   vec4 cloudBase = texture(uNoiseTex1, p);
-   float lowFreqNoise = cloudBase.r * uLayerContribution.x;
-   float highFreqNoise = dot(cloudBase.gba, uLayerContribution.yzw);
-   float baseDensity = clampRemap(lowFreqNoise, highFreqNoise - 1, 1.0, 0.0, 1.0);
+float SampleDensity(vec3 p, float coverage) {
+   p = p * 0.001 * uCloudScale + uCloudOffset;
+   vec4 lowFreqNoise = texture(uNoiseTex1, p);
+   float lowFeqFBM = dot(lowFreqNoise.gba, uLayerContribution.gba); 
+   float baseCloud = Remap(lowFreqNoise.r,  -(1.0 - lowFeqFBM), 1.0, 0.0, 1.0);
+   
+   vec3 highFreqNoise = texture(uNoiseTex2, p * 0.4).rgb;
+   float highFreqFBM = dot(highFreqNoise, uLayerContribution.gba);
 
-   vec3 cloudDetail = texture(uNoiseTex2, p).rgb;
-   float detailNoise = dot(cloudDetail, vec3(0.5, 0.7, 1.0));
-   baseDensity = clampRemap(baseDensity, detailNoise - 1.0f, 1.0f, 0.0f, 1.0f);
-
-   float heightFraction = GetHeightFraction(p);
-   baseDensity = clamp(baseDensity, 0.0, 1.0);
-   return max(baseDensity - coverage, 0.0f) * uDensityMultiplier;
+   float heightGradient = GetHeightFraction(p);
+   float highFreqNoiseModifier = mix(highFreqFBM, 1.0 - highFreqFBM, clamp(heightGradient, 0.0f, 1.0f));
+   
+   baseCloud = Remap(baseCloud, highFreqNoiseModifier * 0.2, 1.0, 0.0, 1.0);
+   return max(baseCloud - coverage, 0.0f) * uDensityMultiplier;
 }
 
 vec2 RaySphereIntersection( in vec3 ro, in vec3 rd, in vec3 ce, float ra )
@@ -134,30 +131,32 @@ float sugarPowder(float opticalDepth) {
 }
 
 float lightMarch(vec3 r0, vec3 rd) {
-  vec2 t = RaySphereIntersection(r0, rd, vec3(0.0f), 4000.0f);
+  vec2 t = RaySphereIntersection(r0, rd, vec3(0.0f), uRadius.y);
   float stepSize = ceil(t.y) / float(MAX_LIGHTMARCH_STEP);
 
   float opticalDepth = 0.0f;
+  vec3 rayStep = rd * stepSize;
   for(int i = 0; i < MAX_LIGHTMARCH_STEP; ++i) {
-     r0 += rd * stepSize;
-     opticalDepth += max(sampleDensity(r0, uDensityThreshold), 0.0f);
+     r0 += rayStep;
+     opticalDepth += max(SampleDensity(r0, uDensityThreshold), 0.0f);
   }
 
-  return max(exp(-opticalDepth * uLightAbsorption * stepSize), 0.1);
+  return max(exp(-opticalDepth * uLightAbsorption.y * stepSize), 0.1);
 }
 
 void main() {
 
    vec3 r0 = uCamPos;
-   float linearDepth = LinearizeDepth(SampleDepth(uv * 0.5f + 0.5f), 0.5f, 4000.0f);
+   vec2 uv01 = uv * 0.5f + 0.5f;
+   float linearDepth = LinearizeDepth(SampleDepth(uv01), 0.5f, uRadius.y);
 
    vec3 rd = GetRayDir(uv);
 
-   vec3 color = texture(uSceneTexture, uv * 0.5f	+ 0.5f).rgb;
+   vec3 color = texture(uSceneTexture, uv01).rgb;
    vec2 t = vec2(0.0f);
 
-   vec2 t0 = RaySphereIntersection(r0, rd, vec3(0.0f), 1500.0f);
-   vec2 t1 = RaySphereIntersection(r0, rd, vec3(0.0f), 4000.0f);
+   vec2 t0 = RaySphereIntersection(r0, rd, vec3(0.0f), uRadius.x);
+   vec2 t1 = RaySphereIntersection(r0, rd, vec3(0.0f), uRadius.y);
 
    float dstToBox = t0.y;
    if(dstToBox < linearDepth) {
@@ -171,22 +170,23 @@ void main() {
    float totalEnergy = 0.0f;
 
    float cosTheta = dot(uLightDirection, normalize(-rd));
-   float tau = stepSize	* uLightAbsorption;
+   float tau = stepSize * uLightAbsorption.x;
 
+   vec3 rayStep = rd * stepSize;
    for(int i = 0; i < MAX_RAYMARCH_STEP; ++i) {
-      float density = sampleDensity(p,	uDensityThreshold);
+      float density = SampleDensity(p,	uDensityThreshold);
 	  if(density >	0.0f) {
     	  float	lightTransmittance = lightMarch(p, uLightDirection);
 
-		  float	inscattProb	= 1.0f;
+		  float	inscattProb	= stepSize * density;
 		  if(uSugarPowder == 1)
-    		  inscattProb =	sugarPowder(density	* stepSize);
+    		  inscattProb =	sugarPowder(density	* tau);
 
 		  totalEnergy += lightTransmittance	* henyeyGreenstein(cosTheta, uPhaseG) *	inscattProb	* transmittance;
 		  transmittance	*= exp(-density	* tau);
 	  }
    	  if(transmittance < 0.001f) break;
-        p += rd * stepSize;
+	  p	+= rayStep;
   }
   vec3 cloudColor	= totalEnergy *	uLightColor.xyz	* uLightColor.w;
   color	= transmittance * color + cloudColor;

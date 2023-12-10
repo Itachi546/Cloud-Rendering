@@ -35,15 +35,15 @@ private:
 
 	std::unique_ptr<GLBuffer> mQuadBuffer;
 
-	float mCloudScale = 0.002f;
+	float mCloudScale = 1.0f;
 	glm::vec3 mCloudOffset{ 0.0f };
 	float mDensityMultiplier = 0.157f;
 	float mDensityThreshold = 0.913f;
 	glm::vec3 mLightDirection = glm::vec3(0.0f, 1.0f, 0.0f);
-	glm::vec4 mLightColor = glm::vec4(1.0f, 1.0f, 1.0f, 30.0f);
+	glm::vec4 mLightColor = glm::vec4(1.0f, 1.0f, 1.0f, 200.0f);
 	glm::vec4 mLayerContribution = glm::vec4(1.0f, 0.625, 0.112, 0.938);
 	float mPhaseG = 0.5f;
-	float mLightAbsorption = 0.2f;
+	glm::vec2 mLightAbsorption{ 0.2f };
 	bool mSugarPowder = true;
 
 	unsigned int mGpuQuery;
